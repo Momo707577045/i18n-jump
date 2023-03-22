@@ -1,7 +1,7 @@
 {
   "name": "i18n-jump",
   "version": "0.0.1",
-  "publisher": "毛静文",
+  "publisher": "maojingwen",
   "displayName": "i18n-jump",
   "description": "i18n-jump-for-xmp",
   "keywords": [
@@ -16,7 +16,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/sxei/vscode-plugin-demo"
+    "url": "https://github.com/Momo707577045/i18n-jump"
   },
   "main": "./out/extension.js",
   "contributes": {
