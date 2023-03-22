@@ -1,0 +1,80 @@
+{
+  "name": "i18n-jump",
+  "version": "0.0.1",
+  "publisher": "毛静文",
+  "displayName": "i18n-jump",
+  "description": "i18n-jump-for-xmp",
+  "keywords": [
+    "i18n",
+    "xmp"
+  ],
+  "engines": {
+    "vscode": "^1.76.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sxei/vscode-plugin-demo"
+  },
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "i18n-jump.i18n-jump-code",
+        "title": "搜索被引用项"
+      },
+      {
+        "command": "i18n-jump.vue-jump-cn",
+        "title": "跳转中文翻译"
+      },
+      {
+        "command": "i18n-jump.vue-jump-en",
+        "title": "跳转英文翻译"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "i18n-jump.i18n-jump-code",
+          "group": "navigation"
+        },
+        {
+          "command": "i18n-jump.vue-jump-cn",
+          "group": "navigation"
+        },
+        {
+          "command": "i18n-jump.vue-jump-en",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "activationEvents": [
+    "onLanguage:json",
+    "onLanguage:typescript",
+    "onLanguage:vue"
+  ],
+  "scripts": {
+    "vscode:prepublish": "yarn run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "yarn run compile && yarn run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.76.0",
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^5.53.0",
+    "@typescript-eslint/parser": "^5.53.0",
+    "eslint": "^8.34.0",
+    "glob": "^8.1.0",
+    "mocha": "^10.2.0",
+    "typescript": "^4.9.5",
+    "@vscode/test-electron": "^2.2.3"
+  }
+}
