@@ -29,14 +29,13 @@ function getParamPaths(
     if (currentLine.includes("{") && currentLine.includes("}")) {
       continue;
     }
-    if (currentLine.includes("{")) {
+    if (currentLine.includes("{") && currentLine.includes(":")) {
       if (stackNum === 0) {
         namePath.unshift(currentLine.split(":")[0].trim());
       } else {
         stackNum--;
       }
-    }
-    if (currentLine.includes("}")) {
+    } else if (currentLine.includes("}")) {
       stackNum++;
     }
   }
@@ -44,17 +43,18 @@ function getParamPaths(
 }
 
 // 获取当前参数的全层级路径
-function getParamPosition(fileStr: string, paramPaths: string[]) {
+function getParamPosition(fileStr: string, originParamPaths: string[]) {
   try {
-    paramPaths = [...paramPaths];
+    let paramPaths = [...originParamPaths];
     let currentLine = -1;
     let lastWord = "";
+    let regexp = new RegExp(`\\W${paramPaths[0]}\\W`);
     const fileLines = fileStr.split("\n");
     while (paramPaths.length && currentLine < fileLines.length) {
       currentLine++;
-      const regexp = new RegExp(`\\W${paramPaths[0]}\\W`);
       if (regexp.test(fileLines[currentLine])) {
         lastWord = paramPaths.shift() || "";
+        regexp = new RegExp(`\\W${paramPaths[0]}\\W`);
       }
     }
     console.log(
@@ -62,8 +62,10 @@ function getParamPosition(fileStr: string, paramPaths: string[]) {
       currentLine,
       lastWord,
       paramPaths,
+      originParamPaths,
       fileLines[currentLine]
     );
+    // 还有路径没匹配完，证明未命中
     if (paramPaths.length) {
       return false;
     }
@@ -78,12 +80,6 @@ function jumpTsI18n(document: TextDocument, position: Position): any {
   const fileName = document.fileName; // 当前文件完整路径
   const word = document.getText(document.getWordRangeAtPosition(position)); // 当前光标所在单词
   const line = document.lineAt(position); // 当前光标所在行字符串
-
-  // 设置单词分隔
-  languages.setLanguageConfiguration("typescript", {
-    wordPattern:
-      /([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
-  });
 
   // 如果非 src/locales 中的 ts 文件，则不做处理
   if (!fileName.includes("locales")) {
@@ -118,12 +114,6 @@ function jumpJsonI18n(document: TextDocument, position: Position): any {
   const word = document.getText(document.getWordRangeAtPosition(position)); // 当前光标所在单词
   const line = document.lineAt(position); // 当前光标所在行字符串
 
-  // 设置单词分隔
-  languages.setLanguageConfiguration("json", {
-    wordPattern:
-      /([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
-  });
-
   // 如果非 .i18n.json 文件，则不做处理
   if (!fileName.includes(".i18n.json")) {
     return;
@@ -148,7 +138,6 @@ function jumpJsonI18n(document: TextDocument, position: Position): any {
 function jumpVueI18n(
   lang: "en" | "cn",
   textEditor: TextEditor,
-  edit: TextEditorEdit
 ): any {
   const { document } = textEditor;
   const fileName = document.fileName; // 当前文件完整路径
@@ -209,15 +198,18 @@ function searchI18n(textEditor: TextEditor, edit: TextEditorEdit): any {
   const namePath = getParamPaths(document, line, word); // 完整对象层级
   if (fileName.includes(".i18n.json")) {
     namePath.shift();
-  } else {
+  } else if (fileName.includes("locales")) {
     namePath.unshift(fileName.split("/").slice(-1)[0].split(".")[0]);
+  } else if (fileName.includes("locales")) {
+    namePath.length = 0;
+    namePath.push(word);
   }
 
   // 直接从源码中查看配置
   // https://github.com/microsoft/vscode/blob/17de08a829e56657e44213a70cf69d18f06e74a5/src/vs/workbench/contrib/search/browser/searchActions.ts#L160-L188
   commands.executeCommand("workbench.action.findInFiles", {
     query: namePath.join(".").replace(/"/g, ""),
-    filesToInclude: "src",
+    filesToInclude: "./src",
     triggerSearch: true,
     matchWholeWord: true,
     isCaseSensitive: true,
@@ -228,6 +220,19 @@ function searchI18n(textEditor: TextEditor, edit: TextEditorEdit): any {
 console.log("i18n-jump plugin read");
 export function activate(context: ExtensionContext) {
   console.log("i18n-jump plugin activate");
+
+  // 设置单词分隔
+  languages.setLanguageConfiguration("typescript", {
+    wordPattern:
+      /([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
+  });
+
+  // 设置单词分隔
+  languages.setLanguageConfiguration("json", {
+    wordPattern:
+      /([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
+  });
+
   context.subscriptions.push(
     languages.registerDefinitionProvider(["typescript"], {
       provideDefinition: jumpTsI18n,
