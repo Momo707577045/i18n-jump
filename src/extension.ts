@@ -76,7 +76,7 @@ function getParamPosition(fileStr: string, originParamPaths: string[]) {
 }
 
 // 针对 locales 中 ts 翻译文件的跳转处理
-function jumpTsI18n(document: TextDocument, position: Position): any {
+function switchTsI18n(document: TextDocument, position: Position): any {
   const fileName = document.fileName; // 当前文件完整路径
   const word = document.getText(document.getWordRangeAtPosition(position)); // 当前光标所在单词
   const line = document.lineAt(position); // 当前光标所在行字符串
@@ -109,7 +109,7 @@ function jumpTsI18n(document: TextDocument, position: Position): any {
 }
 
 // 针对单文件翻译跳转
-function jumpJsonI18n(document: TextDocument, position: Position): any {
+function switchJsonI18n(document: TextDocument, position: Position): any {
   const fileName = document.fileName; // 当前文件完整路径
   const word = document.getText(document.getWordRangeAtPosition(position)); // 当前光标所在单词
   const line = document.lineAt(position); // 当前光标所在行字符串
@@ -134,10 +134,11 @@ function jumpJsonI18n(document: TextDocument, position: Position): any {
   return new Location(Uri.file(fileName), targetPosition);
 }
 
-// 针对 vue 文件跳转至具体的翻译
-function jumpVueI18n(
+// 针对跳转至具体的翻译
+function jumpI18n(
   lang: "en" | "cn",
   textEditor: TextEditor,
+  edit: TextEditorEdit
 ): any {
   const { document } = textEditor;
   const fileName = document.fileName; // 当前文件完整路径
@@ -172,6 +173,10 @@ function jumpVueI18n(
     lang === "en" ? "en-US" : "zh-CN",
     namePath.shift() + ".ts"
   );
+  if(!fs.existsSync(globalI18nFilePath)){
+    window.showInformationMessage("未找到对应翻译，选区是否正确");
+    return;
+  }
   const globalI18nStr = fs.readFileSync(globalI18nFilePath, "utf-8") as string; // 文件文本
   const targetPosition = getParamPosition(globalI18nStr, namePath);
   if (targetPosition) {
@@ -187,6 +192,18 @@ function jumpVueI18n(
     window.showInformationMessage("未找到对应翻译，选区是否正确");
     return;
   }
+}
+
+// 跳转至 store 定义处
+function jumpStore(
+  textEditor: TextEditor,
+  edit: TextEditorEdit
+): any {
+  const { document } = textEditor;
+  const fileName = document.fileName; // 当前文件完整路径
+  const fileStr = fs.readFileSync(fileName, "utf-8") as string; // 文件文本
+  const lineStr = document.lineAt(textEditor.selection.start.line); // 当前光标所在行字符串
+  const selectionStr = document.getText(textEditor.selection); // 当前选中文本
 }
 
 // 搜索使用该翻译的地方
@@ -235,31 +252,34 @@ export function activate(context: ExtensionContext) {
 
   context.subscriptions.push(
     languages.registerDefinitionProvider(["typescript"], {
-      provideDefinition: jumpTsI18n,
+      provideDefinition: switchTsI18n,
     })
   );
   context.subscriptions.push(
     languages.registerDefinitionProvider(["json"], {
-      provideDefinition: jumpJsonI18n,
+      provideDefinition: switchJsonI18n,
     })
   );
 
   context.subscriptions.push(
     commands.registerTextEditorCommand(
-      "i18n-jump.vue-jump-cn",
+      "i18n-jump.jump-i18n-cn",
       (textEditor: TextEditor, edit: TextEditorEdit) =>
-        jumpVueI18n("cn", textEditor, edit)
+      jumpI18n("cn", textEditor, edit)
     )
   );
   context.subscriptions.push(
     commands.registerTextEditorCommand(
-      "i18n-jump.vue-jump-en",
+      "i18n-jump.jump-i18n-en",
       (textEditor: TextEditor, edit: TextEditorEdit) =>
-        jumpVueI18n("en", textEditor, edit)
+      jumpI18n("en", textEditor, edit)
     )
   );
   context.subscriptions.push(
-    commands.registerTextEditorCommand("i18n-jump.i18n-jump-code", searchI18n)
+    commands.registerTextEditorCommand("i18n-jump.jump-store", jumpStore)
+  );
+  context.subscriptions.push(
+    commands.registerTextEditorCommand("i18n-jump.search-i18n", searchI18n)
   );
 }
 

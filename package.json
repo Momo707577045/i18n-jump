@@ -22,30 +22,38 @@
   "contributes": {
     "commands": [
       {
-        "command": "i18n-jump.i18n-jump-code",
+        "command": "i18n-jump.search-i18n",
         "title": "搜索被引用项"
       },
       {
-        "command": "i18n-jump.vue-jump-cn",
-        "title": "跳转中文翻译"
+        "command": "i18n-jump.jump-i18n-cn",
+        "title": "跳转至中文翻译"
       },
       {
-        "command": "i18n-jump.vue-jump-en",
-        "title": "跳转英文翻译"
+        "command": "i18n-jump.jump-i18n-en",
+        "title": "跳转至英文翻译"
+      },
+      {
+        "command": "i18n-jump.jump-store",
+        "title": "跳转至 store 定义"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "i18n-jump.i18n-jump-code",
+          "command": "i18n-jump.search-i18n",
           "group": "navigation"
         },
         {
-          "command": "i18n-jump.vue-jump-cn",
+          "command": "i18n-jump.jump-i18n-cn",
           "group": "navigation"
         },
         {
-          "command": "i18n-jump.vue-jump-en",
+          "command": "i18n-jump.jump-i18n-en",
+          "group": "navigation"
+        },
+        {
+          "command": "i18n-jump.jump-store",
           "group": "navigation"
         }
       ]
