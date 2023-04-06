@@ -175,8 +175,9 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
   const lineStr = document.lineAt(lineNum).text; // 当前光标所在行字符串
   const targetKey = document.getText(textEditor.selection); // 当前选中文本
   const isMapField = !lineStr.includes("@"); // 有 @ 前缀，则证明是非 MapField，可能是 getter, mutation, action
+  let isState = isMapField;
   let channel = ""; // 所属渠道
-  let namespace: "root" | "ad" | "adset" | "campaign" = "ad";
+  let namespace: "root" | "index" | "ad" | "adset" | "campaign" = "root";
 
   // 根据路径找到当前渠道
   const channelNames = ["applovin", "facebook", "gdt", "google", "kuaishou", "mintegral", "tiktok", "multi", "toutiao", "unity"];
@@ -196,7 +197,7 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
         if (!fileLines[currentLineNum].includes("mapFields")) {
           currentLineNum = -1;
         } else {
-          namespace = (fileLines[currentLineNum].split("/") || "root`")[1].split("'")[0].split("`")[0];
+          namespace = (fileLines[currentLineNum].split("/") || "index`")[1].split("'")[0].split("`")[0];
         }
         break;
       }
@@ -207,13 +208,19 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
       return;
     }
   } else {
-    const namespaceStr = lineStr.split(".")[0];
+    const [namespaceStr] = lineStr.split(".");
+    console.log('namespaceStr', namespaceStr, lineStr);
+    if (lineStr.includes("State(")) {
+      isState = true;
+    } 
     if (namespaceStr.includes("adCreate")) {
-      namespace = "root";
+      namespace = "index";
     } else if (namespaceStr.includes("adset")) {
       namespace = "adset";
     } else if (namespaceStr.includes("campaign")) {
       namespace = "campaign";
+    } else if (namespaceStr.includes("ad")) {
+      namespace = "ad";
     }
   }
 
@@ -221,7 +228,7 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
   function searchKey(searchStr: string, targetFilePaths: string[]) {
     for (let pathIndex = 0; pathIndex < targetFilePaths.length; pathIndex++) {
       const targetFilePath = targetFilePaths[pathIndex];
-      console.log(targetFilePath);
+      console.log(searchStr, targetFilePath);
       if (!fs.existsSync(targetFilePath)) {
         console.log(targetFilePath, "not exist");
         continue;
@@ -242,11 +249,17 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
     window.showInformationMessage("未找到对应 store，请选中 mapFields，Getter，mutation 或 action");
     return false;
   }
+  console.log("namespace", namespace);
 
-  // 如果是 root 上的 store，则直接找 StoreDimensionModule.ts 和 StoreModuleMulti.ts
+  // 如果是 store index 上的 store，则直接找 store/index.ts
   if (namespace === "root") {
-    const adsCreateStoreDir = path.resolve(fileName.split("src")[0], "src", "views", "adsCreate", "MixinsAdsCreate");
-    if (isMapField) {
+    return searchKey(isState ? `${targetKey}:` : `${targetKey}(`, [path.resolve(fileName.split("src")[0], "src", "store", "index.ts")]);
+  }
+
+  // 如果是 createIndex 上的 store，则直接找 StoreDimensionModule.ts 和 StoreModuleMulti.ts
+  const adsCreateStoreDir = path.resolve(fileName.split("src")[0], "src", "views", "adsCreate", "MixinsAdsCreate");
+  if (namespace === "index") {
+    if (isState) {
       return searchKey(`${targetKey}:`, [path.resolve(adsCreateStoreDir, "StoreModuleMulti.ts")]);
     } else {
       return searchKey(`${targetKey}(`, [path.resolve(adsCreateStoreDir, "StoreModuleMulti.ts"), path.resolve(adsCreateStoreDir, "StoreDimensionModule.ts")]);
@@ -255,10 +268,18 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
 
   // 处理各渠道的 store
   const channelStoreDir = path.resolve(fileName.split("src")[0], "src", "store", "adsCreate", channel, namespace); // store 文件夹
-  if (isMapField) {
-    return searchKey(`${targetKey}:`, [path.resolve(channelStoreDir, "helper.ts"), path.resolve(channelStoreDir, "index.ts")]);
+  if (isState) {
+    return searchKey(`${targetKey}:`, [
+      path.resolve(channelStoreDir, "helper.ts"),
+      path.resolve(channelStoreDir, "index.ts"),
+      path.resolve(adsCreateStoreDir, "StoreDimensionModule.ts"),
+    ]);
   } else {
-    return searchKey(`${targetKey}(`, [path.resolve(channelStoreDir, "index.ts"), path.resolve(channelStoreDir, "helper.ts")]);
+    return searchKey(`${targetKey}(`, [
+      path.resolve(channelStoreDir, "index.ts"),
+      path.resolve(channelStoreDir, "helper.ts"),
+      path.resolve(adsCreateStoreDir, "StoreDimensionModule.ts"),
+    ]);
   }
 }
 

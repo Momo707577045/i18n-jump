@@ -14,6 +14,6 @@
 - 选中 mapFields 中的 key，右键菜单，跳转至 store 定义处。
   ![](./readme/005.png)
 
-- 选中 Getter，Action，Mutation 中的 function name，右键菜单，跳转至 store 定义处。
+- 选中 Getter，Action，Mutation，State 中的 function name，右键菜单，跳转至 store 定义处。
   ![](./readme/006.png)
 
