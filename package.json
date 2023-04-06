@@ -1,6 +1,6 @@
 {
   "name": "i18n-jump",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "publisher": "maojingwen",
   "displayName": "i18n-jump",
   "description": "i18n-jump-for-xmp",
@@ -21,6 +21,22 @@
   },
   "main": "./out/extension.js",
   "contributes": {
+    "keybindings": [{
+      "command": "i18n-jump.search-i18n",
+      "key": "shift+alt+1",
+      "mac": "shift+alt+1",
+      "when": "editorHasSelection"
+    },{
+      "command": "i18n-jump.jump-i18n-cn",
+      "key": "shift+alt+2",
+      "mac": "shift+alt+2",
+      "when": "editorHasSelection"
+    },{
+      "command": "i18n-jump.jump-store",
+      "key": "shift+alt+3",
+      "mac": "shift+alt+3",
+      "when": "editorHasSelection"
+    }],
     "commands": [
       {
         "command": "i18n-jump.search-i18n",
