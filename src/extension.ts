@@ -209,11 +209,11 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
     }
   } else {
     const [namespaceStr] = lineStr.split(".");
-    console.log('namespaceStr', namespaceStr, lineStr);
+    console.log("namespaceStr", namespaceStr, lineStr);
     if (lineStr.includes("State(")) {
       isState = true;
-    } 
-    if (namespaceStr.includes("adCreate")) {
+    }
+    if (namespaceStr.includes("adCreate") || namespaceStr.includes("AdCreate")) {
       namespace = "index";
     } else if (namespaceStr.includes("adset")) {
       namespace = "adset";
