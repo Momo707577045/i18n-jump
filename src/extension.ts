@@ -251,35 +251,53 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
   }
   console.log("namespace", namespace);
 
+  // 遍历 dist 文件夹中的文件，获取文件相对路径
+  function traverseFile(dirPath: string) {
+    let urls: string[] = [];
+    let files = fs.readdirSync(dirPath);
+    for (let i = 0, length = files.length; i < length; i++) {
+      let fileName = files[i];
+      let fileExtName = fileName.split(".")[fileName.split(".").length - 1];
+      let fileAbsolutePath = `${dirPath}/${fileName}`; // 文件绝对路径
+      // 过滤 adsCreate 文件夹
+      if (["adsCreate"].includes(fileExtName)) {
+        continue;
+      }
+      let stats = fs.statSync(fileAbsolutePath);
+      if (stats.isDirectory()) {
+        urls = [...traverseFile(fileAbsolutePath), ...urls];
+      } else {
+        urls.push(fileAbsolutePath.substring(1)); // 去除首字母 '/'，避免 '//' 路径
+      }
+    }
+    return urls;
+  }
+
+  const adsCreateStoreDir = path.resolve(fileName.split("src")[0], "src", "views", "adsCreate", "MixinsAdsCreate");
+  const allStoreFiles = [
+    ...traverseFile(path.resolve(fileName.split("src")[0], "src", "store")),
+    path.resolve(path.resolve(adsCreateStoreDir, "StoreModuleMulti.ts")) as string,
+    path.resolve(path.resolve(adsCreateStoreDir, "StoreDimensionModule.ts")) as string,
+    path.resolve(path.resolve(adsCreateStoreDir, "StoreModule.ts")) as string,
+    path.resolve(path.resolve(adsCreateStoreDir, "viewAdsCreateNew", "store", "storeModule.ts")) as string,
+  ];
+
   // 如果是 store index 上的 store，则直接找 store/index.ts
   if (namespace === "root") {
-    return searchKey(isState ? `${targetKey}:` : `${targetKey}(`, [path.resolve(fileName.split("src")[0], "src", "store", "index.ts")]);
+    return searchKey(isState ? `${targetKey}:` : `${targetKey}(`, [path.resolve(fileName.split("src")[0], "src", "store", "index.ts"), ...allStoreFiles]);
   }
 
   // 如果是 createIndex 上的 store，则直接找 StoreDimensionModule.ts 和 StoreModuleMulti.ts
-  const adsCreateStoreDir = path.resolve(fileName.split("src")[0], "src", "views", "adsCreate", "MixinsAdsCreate");
   if (namespace === "index") {
-    if (isState) {
-      return searchKey(`${targetKey}:`, [path.resolve(adsCreateStoreDir, "StoreModuleMulti.ts")]);
-    } else {
-      return searchKey(`${targetKey}(`, [path.resolve(adsCreateStoreDir, "StoreModuleMulti.ts"), path.resolve(adsCreateStoreDir, "StoreDimensionModule.ts")]);
-    }
+    return searchKey(isState ? `${targetKey}:` : `${targetKey}(`, allStoreFiles);
   }
 
   // 处理各渠道的 store
   const channelStoreDir = path.resolve(fileName.split("src")[0], "src", "store", "adsCreate", channel, namespace); // store 文件夹
   if (isState) {
-    return searchKey(`${targetKey}:`, [
-      path.resolve(channelStoreDir, "helper.ts"),
-      path.resolve(channelStoreDir, "index.ts"),
-      path.resolve(adsCreateStoreDir, "StoreDimensionModule.ts"),
-    ]);
+    return searchKey(`${targetKey}:`, [path.resolve(channelStoreDir, "helper.ts"), path.resolve(channelStoreDir, "index.ts"), ...allStoreFiles]);
   } else {
-    return searchKey(`${targetKey}(`, [
-      path.resolve(channelStoreDir, "index.ts"),
-      path.resolve(channelStoreDir, "helper.ts"),
-      path.resolve(adsCreateStoreDir, "StoreDimensionModule.ts"),
-    ]);
+    return searchKey(`${targetKey}(`, [path.resolve(channelStoreDir, "index.ts"), path.resolve(channelStoreDir, "helper.ts"), ...allStoreFiles]);
   }
 }
 
