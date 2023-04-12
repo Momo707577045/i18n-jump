@@ -29,4 +29,13 @@
 - 快捷键：shift+alt+1
   ![](./readme/004.png)
 
+#### 右键文案，开始搜索当前翻译所用翻译路径
+- 在页面文案处，点击鼠标右键，触发搜索
+  ![](./readme/007.png)
+- vscode 自动定位搜索栏，并将翻译所用路径填充搜索
+  ![](./readme/008.png)
+- 在 localStorage 中添加 i18n_proxy 来开启该功能
+  ![](./readme/009.png)
+  
+
 
