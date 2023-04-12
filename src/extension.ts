@@ -1,5 +1,8 @@
-const path = require("path");
-const fs = require("fs");
+import * as path from "path";
+import * as fs from "fs";
+import * as url from "url";
+import * as http from "http";
+import * as querystring from "querystring";
 import {
   TextDocument,
   TextLine,
@@ -10,6 +13,7 @@ import {
   window,
   workspace,
   commands,
+  Clipboard,
   languages,
   TextEditor,
   TextEditorEdit,
@@ -197,7 +201,7 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
         if (!fileLines[currentLineNum].includes("mapFields")) {
           currentLineNum = -1;
         } else {
-          namespace = (fileLines[currentLineNum].split("/") || "index`")[1].split("'")[0].split("`")[0];
+          namespace = (fileLines[currentLineNum].split("/") || "index`")[1].split("'")[0].split("`")[0] as any;
         }
         break;
       }
@@ -328,10 +332,44 @@ function searchI18n(textEditor: TextEditor, edit: TextEditorEdit): any {
   });
 }
 
+function setListen() {
+  const port = 14301;
+
+  http
+    .createServer(function (request, response: any) {
+      try {
+        const { query } = url.parse(request.url as string);
+        const { action, key } = querystring.parse(query as string);
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Methods", "PUT,POST,GET,DELETE,OPTIONS");
+        if (action === "search") {
+          commands.executeCommand("workbench.action.findInFiles", {
+            query: key,
+            filesToInclude: "./src",
+            triggerSearch: true,
+            matchWholeWord: true,
+            isCaseSensitive: true,
+          });
+        } else {
+          throw new Error("no such action");
+        }
+        response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+        response.end("搜索成功，请查看 vscode");
+      } catch (error) {
+        response.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
+        response.end("参数错误，请检查");
+      }
+    })
+    .listen(port);
+  console.log(`Server running at http://127.0.0.1:${port}/`);
+}
+
 // 插件被激活时所调用的函数，仅被激活时调用，仅进入一次
 console.log("i18n-jump plugin read");
 export function activate(context: ExtensionContext) {
   console.log("i18n-jump plugin activate");
+
+  setListen();
 
   // 设置单词分隔
   languages.setLanguageConfiguration("typescript", {
