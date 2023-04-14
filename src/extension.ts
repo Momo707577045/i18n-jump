@@ -68,6 +68,46 @@ function getParamPosition(fileStr: string, originParamPaths: string[]) {
   }
 }
 
+// 获取当前参数的全层级路径
+function getParamPositionNew(fileStr: string, originParamPaths: string[]) {
+  try {
+    let paramPaths = originParamPaths.map((path) => ({ path, stackNum: 0 }));
+    let currentLine = 1;
+    let regexp = new RegExp(`\\W${paramPaths[0].path}\\W`);
+    const shiftParamPaths: typeof paramPaths = [{ path: "_root", stackNum: 0 }]; // 被弹出的 param，当发现结构不符时，重新入栈
+    const fileLines = fileStr.split("\n");
+    let currentLineStr = fileLines[currentLine];
+    while (paramPaths.length && currentLine < fileLines.length) {
+      currentLineStr = fileLines[currentLine];
+      const preParams = shiftParamPaths.slice(-1)[0];
+      // console.log(currentLine, currentLineStr, preParams, JSON.stringify(paramPaths));
+      if (preParams.stackNum === 0 && regexp.test(currentLineStr)) {
+        shiftParamPaths.push(paramPaths.shift()!);
+        regexp = new RegExp(`\\W${paramPaths[0]?.path}\\W`);
+      } else if (currentLineStr.includes("{") && !currentLineStr.includes("}")) {
+        preParams.stackNum++;
+      } else if (currentLineStr.includes("}") && !currentLineStr.includes("{")) {
+        preParams.stackNum--;
+        if (preParams.stackNum < 0) {
+          preParams.stackNum = 0;
+          paramPaths.unshift(shiftParamPaths.pop()!);
+          regexp = new RegExp(`\\W${paramPaths[0].path}\\W`);
+        }
+      }
+      currentLine++;
+    }
+    const lastWord = shiftParamPaths.pop()?.path!;
+    console.log("getParamPositionNew", currentLine, lastWord, paramPaths, originParamPaths, currentLineStr);
+    // 还有路径没匹配完，证明未命中
+    if (paramPaths.length) {
+      return false;
+    }
+    return new Position(currentLine - 1, currentLineStr.indexOf(lastWord));
+  } catch (error) {
+    console.log(error);
+  }
+}
+
 // 针对 locales 中 ts 翻译文件的跳转处理
 function switchTsI18n(document: TextDocument, position: Position): any {
   const fileName = document.fileName; // 当前文件完整路径
@@ -90,7 +130,7 @@ function switchTsI18n(document: TextDocument, position: Position): any {
   const targetFileStr = fs.readFileSync(targetFilePath, "utf-8") as string;
   const namePath = getParamPaths(document, line, word); // 完整对象层级
 
-  const targetPosition = getParamPosition(targetFileStr, namePath);
+  const targetPosition = getParamPositionNew(targetFileStr, namePath);
   if (!targetPosition) {
     window.showInformationMessage("未找到对应翻译");
     return;
@@ -116,7 +156,7 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
   namePath.shift();
   namePath.unshift(isZh ? '"en-US"' : '"zh-CN"');
 
-  const targetPosition = getParamPosition(targetFileStr, namePath);
+  const targetPosition = getParamPositionNew(targetFileStr, namePath);
   if (!targetPosition) {
     window.showInformationMessage("未找到对应翻译");
     return;
@@ -138,7 +178,7 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
     const tempNamePath = [lang === "en" ? `"en-US"` : `"zh-CN"`, ...namePath.map((word) => `"${word}"`)];
     customI18nPath = path.resolve(path.dirname(fileName), customI18nPath);
     const customI18nStr = fs.readFileSync(customI18nPath, "utf-8") as string; // 文件文本
-    const targetPosition = getParamPosition(customI18nStr, tempNamePath);
+    const targetPosition = getParamPositionNew(customI18nStr, tempNamePath);
     if (targetPosition) {
       workspace.openTextDocument(Uri.file(customI18nPath)).then((document) => {
         window.showTextDocument(document, {
@@ -156,7 +196,7 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
     return;
   }
   const globalI18nStr = fs.readFileSync(globalI18nFilePath, "utf-8") as string; // 文件文本
-  const targetPosition = getParamPosition(globalI18nStr, namePath);
+  const targetPosition = getParamPositionNew(globalI18nStr, namePath);
   if (targetPosition) {
     workspace.openTextDocument(Uri.file(globalI18nFilePath)).then((document) => {
       window.showTextDocument(document, {
