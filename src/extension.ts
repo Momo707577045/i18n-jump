@@ -241,7 +241,7 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
         if (!fileLines[currentLineNum].includes("mapFields")) {
           currentLineNum = -1;
         } else {
-          namespace = (fileLines[currentLineNum].split("/") || "index`")[1].split("'")[0].split("`")[0] as any;
+          namespace = (fileLines[currentLineNum].split("/")[1] || "index`").split("'")[0].split("`")[0] as any;
         }
         break;
       }
