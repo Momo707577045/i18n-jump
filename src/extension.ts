@@ -14,7 +14,6 @@ import {
   window,
   workspace,
   commands,
-  Clipboard,
   languages,
   TextEditor,
   TextEditorEdit,
@@ -113,22 +112,37 @@ function getParamPositionNew(fileStr: string, originParamPaths: string[]) {
 }
 
 // 往特定层级中，添加新的 key
-function addNewKey(paramPaths: string[], targetFilePath: string, isGlobalLocale: boolean) {
-  let fileStr = fs.readFileSync(targetFilePath, "utf-8") as string; // 文件文本
-  let jsonObj = {};
-  if (isGlobalLocale) {
-    fileStr = fileStr.replace("export default", "");
-    jsonObj = JSON.parse(fileStr);
-  } else {
-    jsonObj = JSON.parse(fileStr);
-    set(jsonObj, ["en-US", ...paramPaths].join("."), get(jsonObj, ["en-US", ...paramPaths].join(".")) || "");
-    set(jsonObj, ["zh-CN", ...paramPaths].join("."), get(jsonObj, ["zh-CN", ...paramPaths].join(".")) || "");
-  }
-  if (isGlobalLocale) {
-    fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj), "utf-8"); // 文件文本
-  } else {
-    fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj, null, 4), "utf-8"); // 文件文本
-  }
+function addNewKey(paramPaths: string[], targetFilePaths: string[], isGlobalLocale: boolean) {
+  targetFilePaths.forEach((targetFilePath) => {
+    let fileStr = fs.readFileSync(targetFilePath, "utf-8") as string; // 文件文本
+    let jsonObj = {};
+    try {
+      if (isGlobalLocale) {
+        fileStr = fileStr.replace("export default", "");
+        eval("global.resultJsonObj = " + fileStr);
+        // @ts-ignore
+        jsonObj = global.resultJsonObj as any;
+        set(jsonObj, paramPaths.slice(1).join("."), get(jsonObj, paramPaths.join(".")) || "");
+        let fileResultStr = "export default " + JSON.stringify(jsonObj, null, 4);
+        fileResultStr = fileResultStr
+          .replace(/"([^"]+)":/gi, "$1:")
+          .replace(/"/gi, "¸")
+          .replace(/'/gi, '"')
+          .replace(/¸/gi, "'")
+          .replace(/\\'/gi, '"')
+          .replace(/'\n/gi, "',\n")
+          .replace(/}\n/gi, "},\n");
+        fs.writeFileSync(targetFilePath, fileResultStr + ";\n", "utf-8"); // 文件文本
+      } else {
+        jsonObj = JSON.parse(fileStr);
+        set(jsonObj, ["en-US", ...paramPaths].join("."), get(jsonObj, ["en-US", ...paramPaths].join(".")) || "");
+        set(jsonObj, ["zh-CN", ...paramPaths].join("."), get(jsonObj, ["zh-CN", ...paramPaths].join(".")) || "");
+        fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj, null, 4), "utf-8"); // 文件文本
+      }
+    } catch (error) {
+      console.log("addNewKey", error);
+    }
+  });
 }
 
 // 针对 locales 中 ts 翻译文件的跳转处理
@@ -206,9 +220,11 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
       const targetPosition = getParamPositionNew(customI18nStr, tempNamePath);
       if (targetPosition) {
         workspace.openTextDocument(Uri.file(customI18nPath)).then((document) => {
-          window.showTextDocument(document, {
-            selection: new Range(targetPosition, targetPosition),
-          });
+          setTimeout(() => {
+            window.showTextDocument(document, {
+              selection: new Range(targetPosition, targetPosition),
+            });
+          }, 300);
         });
         return true;
       }
@@ -221,9 +237,11 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
       const targetPosition = getParamPositionNew(globalI18nStr, namePath.slice(1));
       if (targetPosition) {
         workspace.openTextDocument(Uri.file(globalI18nFilePath)).then((document) => {
-          window.showTextDocument(document, {
-            selection: new Range(targetPosition, targetPosition),
-          });
+          setTimeout(() => {
+            window.showTextDocument(document, {
+              selection: new Range(targetPosition, targetPosition),
+            });
+          }, 300);
         });
         return true;
       }
@@ -232,8 +250,11 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
 
   if (findPosition()) {
     return;
-  } else if (customI18nPath || fs.existsSync(globalI18nFilePath)) {
-    addNewKey(namePath, customI18nPath || globalI18nFilePath, !customI18nPath);
+  } else if (customI18nPath) {
+    addNewKey(namePath, [customI18nPath], false);
+    findPosition();
+  } else if (fs.existsSync(globalI18nFilePath)) {
+    addNewKey(namePath, [globalI18nFilePath.replace("en-US", "zh-CN"), globalI18nFilePath.replace("zh-CN", "en-US")], true);
     findPosition();
   } else {
     window.showInformationMessage("未找到对应翻译，选区是否正确");
