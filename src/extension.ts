@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as url from "url";
 import * as http from "http";
 import * as querystring from "querystring";
-import { set } from "lodash";
+import { set, get } from "lodash";
 import {
   TextDocument,
   TextLine,
@@ -121,8 +121,8 @@ function addNewKey(paramPaths: string[], targetFilePath: string, isGlobalLocale:
     jsonObj = JSON.parse(fileStr);
   } else {
     jsonObj = JSON.parse(fileStr);
-    set(jsonObj, ["en-US", ...paramPaths].join("."), "");
-    set(jsonObj, ["zh-CN", ...paramPaths].join("."), "");
+    set(jsonObj, ["en-US", ...paramPaths].join("."), get(jsonObj, ["en-US", ...paramPaths].join(".")) || "");
+    set(jsonObj, ["zh-CN", ...paramPaths].join("."), get(jsonObj, ["zh-CN", ...paramPaths].join(".")) || "");
   }
   if (isGlobalLocale) {
     fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj), "utf-8"); // 文件文本
