@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as url from "url";
 import * as http from "http";
 import * as querystring from "querystring";
+import { set } from "lodash";
 import {
   TextDocument,
   TextLine,
@@ -80,6 +81,9 @@ function getParamPositionNew(fileStr: string, originParamPaths: string[]) {
     while (paramPaths.length && currentLine < fileLines.length) {
       currentLineStr = fileLines[currentLine];
       const preParams = shiftParamPaths.slice(-1)[0];
+      if (!preParams) {
+        break;
+      }
       // console.log(currentLine, currentLineStr, preParams, JSON.stringify(paramPaths));
       if (preParams.stackNum === 0 && regexp.test(currentLineStr)) {
         shiftParamPaths.push(paramPaths.shift()!);
@@ -105,6 +109,25 @@ function getParamPositionNew(fileStr: string, originParamPaths: string[]) {
     return new Position(currentLine - 1, currentLineStr.indexOf(lastWord));
   } catch (error) {
     console.log(error);
+  }
+}
+
+// 往特定层级中，添加新的 key
+function addNewKey(paramPaths: string[], targetFilePath: string, isGlobalLocale: boolean) {
+  let fileStr = fs.readFileSync(targetFilePath, "utf-8") as string; // 文件文本
+  let jsonObj = {};
+  if (isGlobalLocale) {
+    fileStr = fileStr.replace("export default", "");
+    jsonObj = JSON.parse(fileStr);
+  } else {
+    jsonObj = JSON.parse(fileStr);
+    set(jsonObj, ["en-US", ...paramPaths].join("."), "");
+    set(jsonObj, ["zh-CN", ...paramPaths].join("."), "");
+  }
+  if (isGlobalLocale) {
+    fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj), "utf-8"); // 文件文本
+  } else {
+    fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj, null, 4), "utf-8"); // 文件文本
   }
 }
 
@@ -172,41 +195,48 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
   const fileStr = fs.readFileSync(fileName, "utf-8") as string; // 文件文本
   const namePath = (document.getText(textEditor.selection) || "").split("."); // 当前选中翻译文本的路径
   let customI18nPath = (fileStr.match(/<i18n.+src="([^"]+)".+i18n>/) || [])[1]; // 获取 vue 注入的翻译文件
+  let globalI18nFilePath = path.resolve(fileName.split("src")[0], "src", "locales", lang === "en" ? "en-US" : "zh-CN", namePath[0] + ".ts");
 
-  // 存在翻译特别注入的翻译文件，则先从这里找，否则再从全局找
-  if (customI18nPath) {
-    const tempNamePath = [lang === "en" ? `"en-US"` : `"zh-CN"`, ...namePath.map((word) => `"${word}"`)];
-    customI18nPath = path.resolve(path.dirname(fileName), customI18nPath);
-    const customI18nStr = fs.readFileSync(customI18nPath, "utf-8") as string; // 文件文本
-    const targetPosition = getParamPositionNew(customI18nStr, tempNamePath);
-    if (targetPosition) {
-      workspace.openTextDocument(Uri.file(customI18nPath)).then((document) => {
-        window.showTextDocument(document, {
-          selection: new Range(targetPosition, targetPosition),
+  function findPosition() {
+    // 存在翻译特别注入的翻译文件，则先从这里找，否则再从全局找
+    if (customI18nPath) {
+      const tempNamePath = [lang === "en" ? `"en-US"` : `"zh-CN"`, ...namePath.map((word) => `"${word}"`)];
+      customI18nPath = path.resolve(path.dirname(fileName), customI18nPath);
+      const customI18nStr = fs.readFileSync(customI18nPath, "utf-8") as string; // 文件文本
+      const targetPosition = getParamPositionNew(customI18nStr, tempNamePath);
+      if (targetPosition) {
+        workspace.openTextDocument(Uri.file(customI18nPath)).then((document) => {
+          window.showTextDocument(document, {
+            selection: new Range(targetPosition, targetPosition),
+          });
         });
-      });
-      return;
+        return true;
+      }
+    }
+
+    // 无特别注入的翻译，则从全局路径中找
+    if (fs.existsSync(globalI18nFilePath)) {
+      const globalI18nStr = fs.readFileSync(globalI18nFilePath, "utf-8") as string; // 文件文本
+      console.log("globalI18nFilePath22", namePath.slice(1));
+      const targetPosition = getParamPositionNew(globalI18nStr, namePath.slice(1));
+      if (targetPosition) {
+        workspace.openTextDocument(Uri.file(globalI18nFilePath)).then((document) => {
+          window.showTextDocument(document, {
+            selection: new Range(targetPosition, targetPosition),
+          });
+        });
+        return true;
+      }
     }
   }
 
-  // 无特别注入的翻译，则从全局路径中找
-  let globalI18nFilePath = path.resolve(fileName.split("src")[0], "src", "locales", lang === "en" ? "en-US" : "zh-CN", namePath.shift() + ".ts");
-  if (!fs.existsSync(globalI18nFilePath)) {
-    window.showInformationMessage("未找到对应翻译，选区是否正确");
+  if (findPosition()) {
     return;
-  }
-  const globalI18nStr = fs.readFileSync(globalI18nFilePath, "utf-8") as string; // 文件文本
-  const targetPosition = getParamPositionNew(globalI18nStr, namePath);
-  if (targetPosition) {
-    workspace.openTextDocument(Uri.file(globalI18nFilePath)).then((document) => {
-      window.showTextDocument(document, {
-        selection: new Range(targetPosition, targetPosition),
-      });
-    });
-    return;
+  } else if (customI18nPath || fs.existsSync(globalI18nFilePath)) {
+    addNewKey(namePath, customI18nPath || globalI18nFilePath, !customI18nPath);
+    findPosition();
   } else {
     window.showInformationMessage("未找到对应翻译，选区是否正确");
-    return;
   }
 }
 
