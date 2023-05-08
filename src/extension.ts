@@ -219,13 +219,20 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
       const customI18nStr = fs.readFileSync(customI18nPath, "utf-8") as string; // 文件文本
       const targetPosition = getParamPositionNew(customI18nStr, tempNamePath);
       if (targetPosition) {
-        workspace.openTextDocument(Uri.file(customI18nPath)).then((document) => {
-          setTimeout(() => {
+        const selection = new Range(targetPosition, targetPosition);
+        const openedEditor = window.visibleTextEditors.find(e => e.document.fileName === customI18nPath);
+        if (openedEditor) {
+          window.showTextDocument(openedEditor.document, {
+            selection,
+            viewColumn: openedEditor.viewColumn,
+          });
+        } else {
+          workspace.openTextDocument(Uri.file(customI18nPath)).then((document) => {
             window.showTextDocument(document, {
-              selection: new Range(targetPosition, targetPosition),
+              selection,
             });
-          }, 300);
-        });
+          });
+        }
         return true;
       }
     }
@@ -233,16 +240,22 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
     // 无特别注入的翻译，则从全局路径中找
     if (fs.existsSync(globalI18nFilePath)) {
       const globalI18nStr = fs.readFileSync(globalI18nFilePath, "utf-8") as string; // 文件文本
-      console.log("globalI18nFilePath22", namePath.slice(1));
       const targetPosition = getParamPositionNew(globalI18nStr, namePath.slice(1));
       if (targetPosition) {
-        workspace.openTextDocument(Uri.file(globalI18nFilePath)).then((document) => {
-          setTimeout(() => {
+        const selection = new Range(targetPosition, targetPosition);
+        const openedEditor = window.visibleTextEditors.find(e => e.document.fileName === globalI18nFilePath);
+        if (openedEditor) {
+          window.showTextDocument(openedEditor.document, {
+            selection,
+            viewColumn: openedEditor.viewColumn,
+          });
+        } else {
+          workspace.openTextDocument(Uri.file(globalI18nFilePath)).then((document) => {
             window.showTextDocument(document, {
-              selection: new Range(targetPosition, targetPosition),
+              selection,
             });
-          }, 300);
-        });
+          });
+        }
         return true;
       }
     }
