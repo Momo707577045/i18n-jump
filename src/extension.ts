@@ -73,7 +73,7 @@ function getParamPositionNew(fileStr: string, originParamPaths: string[]) {
   try {
     let paramPaths = originParamPaths.map((path) => ({ path, stackNum: 0 }));
     let currentLine = 1;
-    let regexp = new RegExp(`\\W${paramPaths[0].path}\\W`);
+    let regexp = new RegExp(`["' ]${paramPaths[0].path}\\W`);
     const shiftParamPaths: typeof paramPaths = [{ path: "_root", stackNum: 0 }]; // 被弹出的 param，当发现结构不符时，重新入栈
     const fileLines = fileStr.split("\n");
     let currentLineStr = fileLines[currentLine];
@@ -86,7 +86,7 @@ function getParamPositionNew(fileStr: string, originParamPaths: string[]) {
       // console.log(currentLine, currentLineStr, preParams, JSON.stringify(paramPaths));
       if (preParams.stackNum === 0 && regexp.test(currentLineStr)) {
         shiftParamPaths.push(paramPaths.shift()!);
-        regexp = new RegExp(`\\W${paramPaths[0]?.path}\\W`);
+        regexp = new RegExp(`["' ]${paramPaths[0]?.path}\\W`);
       } else if (currentLineStr.includes("{") && !currentLineStr.includes("}")) {
         preParams.stackNum++;
       } else if (currentLineStr.includes("}") && !currentLineStr.includes("{")) {
@@ -94,7 +94,7 @@ function getParamPositionNew(fileStr: string, originParamPaths: string[]) {
         if (preParams.stackNum < 0) {
           preParams.stackNum = 0;
           paramPaths.unshift(shiftParamPaths.pop()!);
-          regexp = new RegExp(`\\W${paramPaths[0].path}\\W`);
+          regexp = new RegExp(`["' ]${paramPaths[0].path}\\W`);
         }
       }
       currentLine++;
