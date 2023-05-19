@@ -124,8 +124,9 @@ function addNewKey(paramPaths: string[], targetFilePaths: string[], isGlobalLoca
         jsonObj = global.resultJsonObj as any;
         set(jsonObj, paramPaths.slice(1).join("."), get(jsonObj, paramPaths.join(".")) || "");
         let fileResultStr = "export default " + JSON.stringify(jsonObj, null, 4);
+        const variableNameRegex = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
         fileResultStr = fileResultStr
-          .replace(/"([^"]+)":/gi, "$1:")
+          .replace(/"([^"]+)":/gi, (matchStr, $1) => (variableNameRegex.test($1) ? `${$1}:` : `"${$1}":`))
           .replace(/"/gi, "¸")
           .replace(/'/gi, '"')
           .replace(/¸/gi, "'")
@@ -215,12 +216,17 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
     // 存在翻译特别注入的翻译文件，则先从这里找，否则再从全局找
     if (customI18nPath) {
       const tempNamePath = [lang === "en" ? `"en-US"` : `"zh-CN"`, ...namePath.map((word) => `"${word}"`)];
-      customI18nPath = path.resolve(path.dirname(fileName), customI18nPath);
+      if (customI18nPath.includes("@")) {
+        customI18nPath = customI18nPath.replace("@/", "");
+        customI18nPath = path.resolve(fileName.split("src")[0], "src", customI18nPath);
+      } else {
+        customI18nPath = path.resolve(path.dirname(fileName), customI18nPath);
+      }
       const customI18nStr = fs.readFileSync(customI18nPath, "utf-8") as string; // 文件文本
       const targetPosition = getParamPositionNew(customI18nStr, tempNamePath);
       if (targetPosition) {
         const selection = new Range(targetPosition, targetPosition);
-        const openedEditor = window.visibleTextEditors.find(e => e.document.fileName === customI18nPath);
+        const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === customI18nPath);
         if (openedEditor) {
           window.showTextDocument(openedEditor.document, {
             selection,
@@ -243,7 +249,7 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
       const targetPosition = getParamPositionNew(globalI18nStr, namePath.slice(1));
       if (targetPosition) {
         const selection = new Range(targetPosition, targetPosition);
-        const openedEditor = window.visibleTextEditors.find(e => e.document.fileName === globalI18nFilePath);
+        const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === globalI18nFilePath);
         if (openedEditor) {
           window.showTextDocument(openedEditor.document, {
             selection,
