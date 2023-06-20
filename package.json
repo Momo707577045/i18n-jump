@@ -1,6 +1,6 @@
 {
   "name": "i18n-jump",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "publisher": "maojingwen",
   "displayName": "i18n-jump",
   "description": "i18n-jump-for-xmp",
@@ -57,14 +57,20 @@
       {
         "command": "i18n-jump.jump-store",
         "title": "跳转至 store 定义"
+      },
+      {
+        "command": "i18n-jump.jump-gitlab",
+        "title": "跳转 gitlab"
       }
     ],
     "menus": {
-      "editor/context": [
+      "explorer/context": [
         {
-          "command": "i18n-jump.search-i18n",
+          "command": "i18n-jump.jump-gitlab",
           "group": "navigation"
-        },
+        }
+      ],
+      "editor/context": [
         {
           "command": "i18n-jump.jump-i18n-cn",
           "group": "navigation"
@@ -75,6 +81,10 @@
         },
         {
           "command": "i18n-jump.jump-store",
+          "group": "navigation"
+        },
+        {
+          "command": "i18n-jump.search-i18n",
           "group": "navigation"
         }
       ]

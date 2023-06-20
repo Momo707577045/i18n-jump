@@ -9,3 +9,4 @@
 - 反推，从具体文案，定位到代码，自动拼接字符串，输入到搜索栏中
 - store state，getter，mutation，action 跳转，跳转到具体 store 定义语句
 - 点击路径，在 i18n 中新增 key
+- 右键跳转 gitlab 页面

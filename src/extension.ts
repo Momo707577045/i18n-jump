@@ -10,6 +10,7 @@ import {
   Position,
   Location,
   Uri,
+  env,
   Range,
   window,
   workspace,
@@ -40,32 +41,6 @@ function getParamPaths(document: TextDocument, line: TextLine, firstWord: string
     }
   }
   return namePath;
-}
-
-// 获取当前参数的全层级路径
-function getParamPosition(fileStr: string, originParamPaths: string[]) {
-  try {
-    let paramPaths = [...originParamPaths];
-    let currentLine = -1;
-    let lastWord = "";
-    let regexp = new RegExp(`\\W${paramPaths[0]}\\W`);
-    const fileLines = fileStr.split("\n");
-    while (paramPaths.length && currentLine < fileLines.length) {
-      currentLine++;
-      if (regexp.test(fileLines[currentLine])) {
-        lastWord = paramPaths.shift() || "";
-        regexp = new RegExp(`\\W${paramPaths[0]}\\W`);
-      }
-    }
-    console.log("getParamPosition", currentLine, lastWord, paramPaths, originParamPaths, fileLines[currentLine]);
-    // 还有路径没匹配完，证明未命中
-    if (paramPaths.length) {
-      return false;
-    }
-    return new Position(currentLine, fileLines[currentLine].indexOf(lastWord));
-  } catch (error) {
-    console.log(error);
-  }
 }
 
 // 获取当前参数的全层级路径
@@ -415,6 +390,26 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
   }
 }
 
+// 跳转到 gitlab 页面
+function jumpGitlab(uri: Uri) {
+  const workspaceFolders = workspace.workspaceFolders;
+  const gitDirPath = path.join(workspaceFolders![0].uri.fsPath, ".git");
+  const configPath = path.join(gitDirPath, "config");
+
+  fs.readFile(configPath, "utf8", (err: any, data: string) => {
+    const match = data.match(/url\s*=\s*(.*)/);
+    if (match) {
+      const remoteUrl = match[1];
+      const matchParams = remoteUrl.match(/([^/@]+)@([^:/]+):(.+)\.git$/);
+      if (matchParams) {
+        const hostname = matchParams[2];
+        const path = matchParams[3];
+        env.openExternal(Uri.parse(`https://${hostname}/${path}/-/blob/master/src${uri.path.split("src")[1]}`));
+      }
+    }
+  });
+}
+
 // 搜索使用该翻译的地方
 function searchI18n(textEditor: TextEditor, edit: TextEditorEdit): any {
   const { document } = textEditor;
@@ -510,6 +505,7 @@ export function activate(context: ExtensionContext) {
   );
   context.subscriptions.push(commands.registerTextEditorCommand("i18n-jump.jump-store", jumpStore));
   context.subscriptions.push(commands.registerTextEditorCommand("i18n-jump.search-i18n", searchI18n));
+  context.subscriptions.push(commands.registerCommand("i18n-jump.jump-gitlab", jumpGitlab));
 }
 
 export function deactivate() {}
