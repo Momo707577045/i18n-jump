@@ -269,7 +269,17 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
   let namespace: "root" | "index" | "ad" | "adset" | "campaign" = "root";
 
   // 根据路径找到当前渠道
-  const channelNames = ["applovin", "facebook", "gdt", "google", "kuaishou", "mintegral", "tiktok", "multi", "toutiao", "unity"];
+  const channelNames: string[] = [];
+  const channelStoreDirPath = path.resolve(fileName.split("src")[0], "src", "store", "adsCreate"); // store 文件夹
+  const files = fs.readdirSync(channelStoreDirPath);
+  for (let i = 0; i < files.length; i++) {
+    const filePath = path.join(channelStoreDirPath, files[i]);
+    const fileStat = fs.statSync(filePath);
+    if (fileStat.isDirectory()) {
+      channelNames.push(files[i]);
+    }
+  }
+
   for (let channelIndex = 0; channelIndex < channelNames.length; channelIndex++) {
     const channelName = channelNames[channelIndex];
     if (fileName.includes(channelName)) {
