@@ -409,12 +409,13 @@ function jumpGitlab(uri: Uri) {
   fs.readFile(configPath, "utf8", (err: any, data: string) => {
     const match = data.match(/url\s*=\s*(.*)/);
     if (match) {
+      const branch = data.includes('refs/heads/master') ? 'master' : 'main';
       const remoteUrl = match[1];
       const matchParams = remoteUrl.match(/([^/@]+)@([^:/]+):(.+)\.git$/);
       if (matchParams) {
         const hostname = matchParams[2];
         const path = matchParams[3];
-        env.openExternal(Uri.parse(`https://${hostname}/${path}/-/blob/master/src${uri.path.split("src")[1]}`));
+        env.openExternal(Uri.parse(`https://${hostname}/${path}/-/blob/${branch}${uri.path.split(workspace.rootPath!)[1]}`));
       }
     }
   });
