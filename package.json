@@ -59,14 +59,14 @@
         "title": "跳转至 store 定义"
       },
       {
-        "command": "i18n-jump.jump-gitlab",
-        "title": "跳转 gitlab"
+        "command": "i18n-jump.jump-git",
+        "title": "跳转 git 仓库"
       }
     ],
     "menus": {
       "explorer/context": [
         {
-          "command": "i18n-jump.jump-gitlab",
+          "command": "i18n-jump.jump-git",
           "group": "navigation"
         }
       ],

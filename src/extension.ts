@@ -401,12 +401,13 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
 }
 
 // 跳转到 gitlab 页面
-function jumpGitlab(uri: Uri) {
+function jumpGit(uri: Uri) {
   const workspaceFolders = workspace.workspaceFolders;
   const gitDirPath = path.join(workspaceFolders![0].uri.fsPath, ".git");
   const configPath = path.join(gitDirPath, "config");
 
   fs.readFile(configPath, "utf8", (err: any, data: string) => {
+    const isGitlab = data.includes('git@gitlab');
     const match = data.match(/url\s*=\s*(.*)/);
     if (match) {
       const branch = data.includes('refs/heads/master') ? 'master' : 'main';
@@ -415,7 +416,7 @@ function jumpGitlab(uri: Uri) {
       if (matchParams) {
         const hostname = matchParams[2];
         const path = matchParams[3];
-        env.openExternal(Uri.parse(`https://${hostname}/${path}/-/blob/${branch}${uri.path.split(workspace.rootPath!)[1]}`));
+        env.openExternal(Uri.parse(`https://${hostname}/${path}/${isGitlab ? '-/' : ''}blob/${branch}${uri.path.split(workspace.rootPath!)[1]}`));
       }
     }
   });
@@ -516,7 +517,7 @@ export function activate(context: ExtensionContext) {
   );
   context.subscriptions.push(commands.registerTextEditorCommand("i18n-jump.jump-store", jumpStore));
   context.subscriptions.push(commands.registerTextEditorCommand("i18n-jump.search-i18n", searchI18n));
-  context.subscriptions.push(commands.registerCommand("i18n-jump.jump-gitlab", jumpGitlab));
+  context.subscriptions.push(commands.registerCommand("i18n-jump.jump-git", jumpGit));
 }
 
 export function deactivate() {}
