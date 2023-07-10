@@ -1,6 +1,6 @@
 {
   "name": "i18n-jump",
-  "version": "0.0.21",
+  "version": "0.0.23",
   "publisher": "maojingwen",
   "displayName": "i18n-jump",
   "description": "i18n-jump-for-xmp",
@@ -97,7 +97,7 @@
         "showJumpGitlab": {
           "type": "boolean",
           "default": true,
-          "description": "是否显示跳转 gitlab 菜单"
+          "description": "是否显示跳转 git 菜单"
         }
       }
     }
