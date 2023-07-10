@@ -67,7 +67,8 @@
       "explorer/context": [
         {
           "command": "i18n-jump.jump-git",
-          "group": "navigation"
+          "group": "navigation",
+          "when": "config.i18n-jump.showJumpGitlab"
         }
       ],
       "editor/context": [
@@ -88,6 +89,17 @@
           "group": "navigation"
         }
       ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "i18n-jump",
+      "properties": {
+        "showJumpGitlab": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否显示跳转 gitlab 菜单"
+        }
+      }
     }
   },
   "activationEvents": [
