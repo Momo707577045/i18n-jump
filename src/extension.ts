@@ -154,7 +154,7 @@ function switchTsI18n(document: TextDocument, position: Position): any {
 
 // 针对单文件翻译跳转
 function switchJsonI18n(document: TextDocument, position: Position): any {
-  const fileName = document.fileName; // 当前文件完整路径
+  let fileName = document.fileName; // 当前文件完整路径
   const word = document.getText(document.getWordRangeAtPosition(position)); // 当前光标所在单词
   const line = document.lineAt(position); // 当前光标所在行字符串
 
@@ -163,11 +163,19 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
     return;
   }
 
-  const namePath = getParamPaths(document, line, word); // 完整对象层级
-  const targetFileStr = fs.readFileSync(fileName, "utf-8") as string;
-  const isZh = namePath.includes('"zh-CN"'); // 当前是否为中文字符串
-  namePath.shift();
-  namePath.unshift(isZh ? '"en-US"' : '"zh-CN"');
+  let namePath: string[] = getParamPaths(document, line, word); // 完整对象层级;
+  let targetFileStr = "";
+
+  // 响应翻译文件变化，实现 locales 全局文件夹中的跳转
+  if (fileName.includes("locales")) {
+    fileName = fileName.includes('zh-CN') ? fileName.replace("zh-CN", "en-US") : fileName.replace("en-US", "zh-CN");
+    targetFileStr = fs.readFileSync(fileName, "utf-8") as string;
+  } else {
+    targetFileStr = fs.readFileSync(fileName, "utf-8") as string;
+    const isZh = namePath.includes('"zh-CN"'); // 当前是否为中文字符串
+    namePath.shift();
+    namePath.unshift(isZh ? '"en-US"' : '"zh-CN"');
+  }
 
   const targetPosition = getParamPositionNew(targetFileStr, namePath);
   if (!targetPosition) {
@@ -185,7 +193,7 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
   const fileStr = fs.readFileSync(fileName, "utf-8") as string; // 文件文本
   const namePath = (document.getText(textEditor.selection) || "").split("."); // 当前选中翻译文本的路径
   let customI18nPath = (fileStr.match(/<i18n.+src="([^"]+)".+i18n>/) || [])[1]; // 获取 vue 注入的翻译文件
-  let globalI18nFilePath = path.resolve(fileName.split("src")[0], "src", "locales", lang === "en" ? "en-US" : "zh-CN", namePath[0] + ".ts");
+  let globalI18nFilePath = path.resolve(fileName.split("src")[0], "src", "locales", lang === "en" ? "en-US" : "zh-CN", "index.i18n.json");
 
   function findPosition() {
     // 存在翻译特别注入的翻译文件，则先从这里找，否则再从全局找
@@ -221,7 +229,7 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
     // 无特别注入的翻译，则从全局路径中找
     if (fs.existsSync(globalI18nFilePath)) {
       const globalI18nStr = fs.readFileSync(globalI18nFilePath, "utf-8") as string; // 文件文本
-      const targetPosition = getParamPositionNew(globalI18nStr, namePath.slice(1));
+      const targetPosition = getParamPositionNew(globalI18nStr, namePath);
       if (targetPosition) {
         const selection = new Range(targetPosition, targetPosition);
         const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === globalI18nFilePath);
@@ -407,16 +415,16 @@ function jumpGit(uri: Uri) {
   const configPath = path.join(gitDirPath, "config");
 
   fs.readFile(configPath, "utf8", (err: any, data: string) => {
-    const isGitlab = data.includes('git@gitlab');
+    const isGitlab = data.includes("git@gitlab");
     const match = data.match(/url\s*=\s*(.*)/);
     if (match) {
-      const branch = data.includes('refs/heads/master') ? 'master' : 'main';
+      const branch = data.includes("refs/heads/master") ? "master" : "main";
       const remoteUrl = match[1];
       const matchParams = remoteUrl.match(/([^/@]+)@([^:/]+):(.+)\.git$/);
       if (matchParams) {
         const hostname = matchParams[2];
         const path = matchParams[3];
-        env.openExternal(Uri.parse(`https://${hostname}/${path}/${isGitlab ? '-/' : ''}blob/${branch}${uri.path.split(workspace.rootPath!)[1]}`));
+        env.openExternal(Uri.parse(`https://${hostname}/${path}/${isGitlab ? "-/" : ""}blob/${branch}${uri.path.split(workspace.rootPath!)[1]}`));
       }
     }
   });
