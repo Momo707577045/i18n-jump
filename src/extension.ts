@@ -433,17 +433,11 @@ function jumpGit(uri: Uri) {
 // 搜索使用该翻译的地方
 function searchI18n(textEditor: TextEditor, edit: TextEditorEdit): any {
   const { document } = textEditor;
-  const fileName = document.fileName; // 当前文件完整路径
   const word = document.getText(textEditor.selection); // 当前光标所在单词
   const line = document.lineAt(textEditor.selection.start.line); // 当前光标所在行字符串
   const namePath = getParamPaths(document, line, word); // 完整对象层级
-  if (fileName.includes(".i18n.json")) {
+  if (['en-US', 'zh-CN'].includes(namePath[0])) {
     namePath.shift();
-  } else if (fileName.includes("locales")) {
-    namePath.unshift(fileName.split("/").slice(-1)[0].split(".")[0]);
-  } else if (fileName.includes("locales")) {
-    namePath.length = 0;
-    namePath.push(word);
   }
 
   // 直接从源码中查看配置
