@@ -168,7 +168,7 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
 
   // 响应翻译文件变化，实现 locales 全局文件夹中的跳转
   if (fileName.includes("locales")) {
-    fileName = fileName.includes('zh-CN') ? fileName.replace("zh-CN", "en-US") : fileName.replace("en-US", "zh-CN");
+    fileName = fileName.includes("zh-CN") ? fileName.replace("zh-CN", "en-US") : fileName.replace("en-US", "zh-CN");
     targetFileStr = fs.readFileSync(fileName, "utf-8") as string;
   } else {
     targetFileStr = fs.readFileSync(fileName, "utf-8") as string;
@@ -436,7 +436,7 @@ function searchI18n(textEditor: TextEditor, edit: TextEditorEdit): any {
   const word = document.getText(textEditor.selection); // 当前光标所在单词
   const line = document.lineAt(textEditor.selection.start.line); // 当前光标所在行字符串
   const namePath = getParamPaths(document, line, word); // 完整对象层级
-  if (['en-US', 'zh-CN'].includes(namePath[0])) {
+  if (["en-US", "zh-CN"].includes(namePath[0])) {
     namePath.shift();
   }
 
@@ -469,6 +469,27 @@ function setListen() {
             matchWholeWord: true,
             isCaseSensitive: true,
           });
+          // 直接定位翻译文件
+          const globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], 'src/locales/zh-CN/index.i18n.json');; // 文件文本
+          const globalI18nStr = fs.readFileSync(globalI18nPath, "utf-8") as string; // 文件文本
+          const targetPosition = getParamPositionNew(globalI18nStr, (Array.isArray(key) ? key![0] : key || '')?.split('.'));
+          if (targetPosition) {
+            const selection = new Range(targetPosition, targetPosition);
+            const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === globalI18nPath);
+            if (openedEditor) {
+              window.showTextDocument(openedEditor.document, {
+                selection,
+                viewColumn: openedEditor.viewColumn,
+              });
+            } else {
+              workspace.openTextDocument(Uri.file(globalI18nPath)).then((document) => {
+                window.showTextDocument(document, {
+                  selection,
+                });
+              });
+            }
+            return true;
+          }
         } else {
           throw new Error("no such action");
         }
