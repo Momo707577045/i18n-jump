@@ -21,6 +21,25 @@ import {
   ExtensionContext,
 } from "vscode";
 
+let targetLanguages: string[] = [];
+
+// 获取系统存在的语言
+function updateLanguage() {
+  const globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/locales/");
+  targetLanguages = fs
+    .readdirSync(globalI18nPath, { withFileTypes: true })
+    .filter((item) => item.isDirectory())
+    .map((item) => item.name);
+  console.log(targetLanguages);
+}
+
+// 获取轮询的下一个语义
+function getNextLanguage(path: string) {
+  const originLang = targetLanguages.find((lang) => path.indexOf(lang) > -1)!; // 匹配当前语言
+  const nextLanguage = [...targetLanguages, ...targetLanguages][targetLanguages.indexOf(originLang) + 1]; // 获取下一个语言
+  return path.replace(originLang, nextLanguage);
+}
+
 // 获取当前参数的全层级路径，
 function getParamPaths(document: TextDocument, line: TextLine, firstWord: string) {
   let stackNum = 0;
@@ -111,8 +130,9 @@ function addNewKey(paramPaths: string[], targetFilePaths: string[], isGlobalLoca
         fs.writeFileSync(targetFilePath, fileResultStr + ";\n", "utf-8"); // 文件文本
       } else {
         jsonObj = JSON.parse(fileStr);
-        set(jsonObj, ["en-US", ...paramPaths].join("."), get(jsonObj, ["en-US", ...paramPaths].join(".")) || "");
-        set(jsonObj, ["zh-CN", ...paramPaths].join("."), get(jsonObj, ["zh-CN", ...paramPaths].join(".")) || "");
+        targetLanguages.forEach((language) => {
+          set(jsonObj, [language, ...paramPaths].join("."), get(jsonObj, [language, ...paramPaths].join(".")) || "");
+        });
         fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj, null, 4), "utf-8"); // 文件文本
       }
     } catch (error) {
@@ -121,39 +141,9 @@ function addNewKey(paramPaths: string[], targetFilePaths: string[], isGlobalLoca
   });
 }
 
-// 针对 locales 中 ts 翻译文件的跳转处理
-function switchTsI18n(document: TextDocument, position: Position): any {
-  const fileName = document.fileName; // 当前文件完整路径
-  const word = document.getText(document.getWordRangeAtPosition(position)); // 当前光标所在单词
-  const line = document.lineAt(position); // 当前光标所在行字符串
-
-  // 如果非 src/locales 中的 ts 文件，则不做处理
-  if (!fileName.includes("locales")) {
-    console.log('fileName.includes("locales")');
-    return;
-  }
-
-  const isZh = fileName.includes("zh-CN"); // 当前是否为中文字符串
-  const targetFilePath = isZh ? fileName.replace("zh-CN", "en-US") : fileName.replace("en-US", "zh-CN");
-
-  // 对应翻译文件不存在
-  if (!fs.existsSync(targetFilePath)) {
-    return;
-  }
-  const targetFileStr = fs.readFileSync(targetFilePath, "utf-8") as string;
-  const namePath = getParamPaths(document, line, word); // 完整对象层级
-
-  const targetPosition = getParamPositionNew(targetFileStr, namePath);
-  if (!targetPosition) {
-    window.showInformationMessage("未找到对应翻译");
-    return;
-  }
-
-  return new Location(Uri.file(targetFilePath), targetPosition);
-}
-
 // 针对单文件翻译跳转
 function switchJsonI18n(document: TextDocument, position: Position): any {
+  updateLanguage();
   let fileName = document.fileName; // 当前文件完整路径
   const word = document.getText(document.getWordRangeAtPosition(position)); // 当前光标所在单词
   const line = document.lineAt(position); // 当前光标所在行字符串
@@ -168,13 +158,11 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
 
   // 响应翻译文件变化，实现 locales 全局文件夹中的跳转
   if (fileName.includes("locales")) {
-    fileName = fileName.includes("zh-CN") ? fileName.replace("zh-CN", "en-US") : fileName.replace("en-US", "zh-CN");
+    fileName = getNextLanguage(fileName);
     targetFileStr = fs.readFileSync(fileName, "utf-8") as string;
   } else {
     targetFileStr = fs.readFileSync(fileName, "utf-8") as string;
-    const isZh = namePath.includes('"zh-CN"'); // 当前是否为中文字符串
-    namePath.shift();
-    namePath.unshift(isZh ? '"en-US"' : '"zh-CN"');
+    namePath.unshift(getNextLanguage(namePath.shift()!));
   }
 
   const targetPosition = getParamPositionNew(targetFileStr, namePath);
@@ -188,6 +176,7 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
 
 // 针对跳转至具体的翻译
 function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdit): any {
+  updateLanguage();
   const { document } = textEditor;
   const fileName = document.fileName; // 当前文件完整路径
   const fileStr = fs.readFileSync(fileName, "utf-8") as string; // 文件文本
@@ -256,7 +245,12 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
     addNewKey(namePath, [customI18nPath], false);
     findPosition();
   } else if (fs.existsSync(globalI18nFilePath)) {
-    addNewKey(namePath, [globalI18nFilePath.replace("en-US", "zh-CN"), globalI18nFilePath.replace("zh-CN", "en-US")], true);
+    const originLang = targetLanguages.find((lang) => globalI18nFilePath.indexOf(lang) > -1)!; // 匹配当前语言
+    addNewKey(
+      namePath,
+      targetLanguages.map((lan) => globalI18nFilePath.replace(originLang, lan)),
+      true
+    );
     findPosition();
   } else {
     window.showInformationMessage("未找到对应翻译，选区是否正确");
@@ -432,11 +426,12 @@ function jumpGit(uri: Uri) {
 
 // 搜索使用该翻译的地方
 function searchI18n(textEditor: TextEditor, edit: TextEditorEdit): any {
+  updateLanguage();
   const { document } = textEditor;
   const word = document.getText(textEditor.selection); // 当前光标所在单词
   const line = document.lineAt(textEditor.selection.start.line); // 当前光标所在行字符串
   const namePath = getParamPaths(document, line, word); // 完整对象层级
-  if (["en-US", "zh-CN"].includes(namePath[0])) {
+  if (targetLanguages.includes(namePath[0])) {
     namePath.shift();
   }
 
@@ -470,9 +465,9 @@ function setListen() {
             isCaseSensitive: true,
           });
           // 直接定位翻译文件
-          const globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], 'src/locales/zh-CN/index.i18n.json');; // 文件文本
+          const globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/locales/zh-CN/index.i18n.json"); // 文件文本
           const globalI18nStr = fs.readFileSync(globalI18nPath, "utf-8") as string; // 文件文本
-          const targetPosition = getParamPositionNew(globalI18nStr, (Array.isArray(key) ? key![0] : key || '')?.split('.'));
+          const targetPosition = getParamPositionNew(globalI18nStr, (Array.isArray(key) ? key![0] : key || "")?.split("."));
           if (targetPosition) {
             const selection = new Range(targetPosition, targetPosition);
             const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === globalI18nPath);
@@ -521,11 +516,6 @@ export function activate(context: ExtensionContext) {
     wordPattern: /([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
   });
 
-  context.subscriptions.push(
-    languages.registerDefinitionProvider(["typescript"], {
-      provideDefinition: switchTsI18n,
-    })
-  );
   context.subscriptions.push(
     languages.registerDefinitionProvider(["json"], {
       provideDefinition: switchJsonI18n,
