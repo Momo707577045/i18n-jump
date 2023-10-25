@@ -21,11 +21,21 @@ import {
   ExtensionContext,
 } from "vscode";
 
+const oldProjectName = "xmp_fe";
+const newProjectName = "xmp_fe_kayn";
+let isNewProject = false;
+let globalI18nPath = "";
 let targetLanguages: string[] = [];
 
-// 获取系统存在的语言
+// 【】获取系统存在的语言
 function updateLanguage() {
-  const globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/locales/");
+  const projectPath = workspace.workspaceFolders![0].uri.fsPath;
+  globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/locales/");
+  if (projectPath.includes(newProjectName)) {
+    isNewProject = true;
+    globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split(newProjectName)[0], `${newProjectName}/locales-json`);
+  }
+
   targetLanguages = fs
     .readdirSync(globalI18nPath, { withFileTypes: true })
     .filter((item) => item.isDirectory())
@@ -33,14 +43,14 @@ function updateLanguage() {
   console.log(targetLanguages);
 }
 
-// 获取轮询的下一个语义
+// 【】获取轮询的下一个语义
 function getNextLanguage(path: string) {
   const originLang = targetLanguages.find((lang) => path.indexOf(lang) > -1)!; // 匹配当前语言
   const nextLanguage = [...targetLanguages, ...targetLanguages][targetLanguages.indexOf(originLang) + 1]; // 获取下一个语言
   return path.replace(originLang, nextLanguage);
 }
 
-// 获取当前参数的全层级路径，
+// 【】获取当前参数的全层级路径
 function getParamPaths(document: TextDocument, line: TextLine, firstWord: string) {
   let stackNum = 0;
   const namePath = [firstWord]; // 路径
@@ -62,8 +72,8 @@ function getParamPaths(document: TextDocument, line: TextLine, firstWord: string
   return namePath;
 }
 
-// 获取当前参数的全层级路径
-function getParamPositionNew(fileStr: string, originParamPaths: string[]) {
+// 【】获取当前参数的全层级路径
+function getParamPosition(fileStr: string, originParamPaths: string[]) {
   try {
     let paramPaths = originParamPaths.map((path) => ({ path, stackNum: 0 }));
     let currentLine = 1;
@@ -94,7 +104,7 @@ function getParamPositionNew(fileStr: string, originParamPaths: string[]) {
       currentLine++;
     }
     const lastWord = shiftParamPaths.pop()?.path!;
-    console.log("getParamPositionNew", currentLine, lastWord, paramPaths, originParamPaths, currentLineStr);
+    console.log("getParamPosition", currentLine, lastWord, paramPaths, originParamPaths, currentLineStr);
     // 还有路径没匹配完，证明未命中
     if (paramPaths.length) {
       return false;
@@ -105,43 +115,27 @@ function getParamPositionNew(fileStr: string, originParamPaths: string[]) {
   }
 }
 
-// 往特定层级中，添加新的 key
+// 【】往特定层级中，添加新的 key
 function addNewKey(paramPaths: string[], targetFilePaths: string[], isGlobalLocale: boolean) {
   targetFilePaths.forEach((targetFilePath) => {
     let fileStr = fs.readFileSync(targetFilePath, "utf-8") as string; // 文件文本
-    let jsonObj = {};
+    let jsonObj = JSON.parse(fileStr);
     try {
       if (isGlobalLocale) {
-        fileStr = fileStr.replace("export default", "");
-        eval("global.resultJsonObj = " + fileStr);
-        // @ts-ignore
-        jsonObj = global.resultJsonObj as any;
-        set(jsonObj, paramPaths.slice(1).join("."), get(jsonObj, paramPaths.join(".")) || "");
-        let fileResultStr = "export default " + JSON.stringify(jsonObj, null, 4);
-        const variableNameRegex = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
-        fileResultStr = fileResultStr
-          .replace(/"([^"]+)":/gi, (matchStr, $1) => (variableNameRegex.test($1) ? `${$1}:` : `"${$1}":`))
-          .replace(/"/gi, "¸")
-          .replace(/'/gi, '"')
-          .replace(/¸/gi, "'")
-          .replace(/\\'/gi, '"')
-          .replace(/'\n/gi, "',\n")
-          .replace(/}\n/gi, "},\n");
-        fs.writeFileSync(targetFilePath, fileResultStr + ";\n", "utf-8"); // 文件文本
+        set(jsonObj, paramPaths.join("."), get(jsonObj, paramPaths.join(".")) || "");
       } else {
-        jsonObj = JSON.parse(fileStr);
         targetLanguages.forEach((language) => {
           set(jsonObj, [language, ...paramPaths].join("."), get(jsonObj, [language, ...paramPaths].join(".")) || "");
         });
-        fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj, null, 4), "utf-8"); // 文件文本
       }
+      fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj, null, isNewProject ? 2 : 4), "utf-8"); // 文件文本
     } catch (error) {
       console.log("addNewKey", error);
     }
   });
 }
 
-// 针对单文件翻译跳转
+// 【】针对单文件翻译跳转
 function switchJsonI18n(document: TextDocument, position: Position): any {
   updateLanguage();
   let fileName = document.fileName; // 当前文件完整路径
@@ -149,7 +143,7 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
   const line = document.lineAt(position); // 当前光标所在行字符串
 
   // 如果非 .i18n.json 文件，则不做处理
-  if (!fileName.includes(".i18n.json")) {
+  if (!fileName.includes("i18n.json") && !fileName.includes(globalI18nPath)) {
     return;
   }
 
@@ -165,7 +159,7 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
     namePath.unshift(getNextLanguage(namePath.shift()!));
   }
 
-  const targetPosition = getParamPositionNew(targetFileStr, namePath);
+  const targetPosition = getParamPosition(targetFileStr, namePath);
   if (!targetPosition) {
     window.showInformationMessage("未找到对应翻译");
     return;
@@ -174,7 +168,7 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
   return new Location(Uri.file(fileName), targetPosition);
 }
 
-// 针对跳转至具体的翻译
+// 【】针对跳转至具体的翻译
 function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdit): any {
   updateLanguage();
   const { document } = textEditor;
@@ -182,7 +176,11 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
   const fileStr = fs.readFileSync(fileName, "utf-8") as string; // 文件文本
   const namePath = (document.getText(textEditor.selection) || "").split("."); // 当前选中翻译文本的路径
   let customI18nPath = (fileStr.match(/<i18n.+src="([^"]+)".+i18n>/) || [])[1]; // 获取 vue 注入的翻译文件
-  let globalI18nFilePath = path.resolve(fileName.split("src")[0], "src", "locales", lang === "en" ? "en-US" : "zh-CN", "index.i18n.json");
+
+  let globalI18nFilePath = path.resolve(globalI18nPath, lang === "en" ? "en-US" : "zh-CN", "index.i18n.json");
+  if (isNewProject) {
+    globalI18nFilePath = path.resolve(globalI18nPath, lang === "en" ? "en-US" : "zh-CN", `${namePath.shift()}.json`);
+  }
 
   function findPosition() {
     // 存在翻译特别注入的翻译文件，则先从这里找，否则再从全局找
@@ -195,7 +193,7 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
         customI18nPath = path.resolve(path.dirname(fileName), customI18nPath);
       }
       const customI18nStr = fs.readFileSync(customI18nPath, "utf-8") as string; // 文件文本
-      const targetPosition = getParamPositionNew(customI18nStr, tempNamePath);
+      const targetPosition = getParamPosition(customI18nStr, tempNamePath);
       if (targetPosition) {
         const selection = new Range(targetPosition, targetPosition);
         const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === customI18nPath);
@@ -218,7 +216,7 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
     // 无特别注入的翻译，则从全局路径中找
     if (fs.existsSync(globalI18nFilePath)) {
       const globalI18nStr = fs.readFileSync(globalI18nFilePath, "utf-8") as string; // 文件文本
-      const targetPosition = getParamPositionNew(globalI18nStr, namePath);
+      const targetPosition = getParamPosition(globalI18nStr, namePath);
       if (targetPosition) {
         const selection = new Range(targetPosition, targetPosition);
         const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === globalI18nFilePath);
@@ -402,7 +400,7 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
   }
 }
 
-// 跳转到 gitlab 页面
+// 【】跳转到 gitlab 页面
 function jumpGit(uri: Uri) {
   const workspaceFolders = workspace.workspaceFolders;
   const gitDirPath = path.join(workspaceFolders![0].uri.fsPath, ".git");
@@ -424,7 +422,7 @@ function jumpGit(uri: Uri) {
   });
 }
 
-// 搜索使用该翻译的地方
+// 【】搜索使用该翻译的地方
 function searchI18n(textEditor: TextEditor, edit: TextEditorEdit): any {
   updateLanguage();
   const { document } = textEditor;
@@ -467,7 +465,7 @@ function setListen() {
           // 直接定位翻译文件
           const globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/locales/zh-CN/index.i18n.json"); // 文件文本
           const globalI18nStr = fs.readFileSync(globalI18nPath, "utf-8") as string; // 文件文本
-          const targetPosition = getParamPositionNew(globalI18nStr, (Array.isArray(key) ? key![0] : key || "")?.split("."));
+          const targetPosition = getParamPosition(globalI18nStr, (Array.isArray(key) ? key![0] : key || "")?.split("."));
           if (targetPosition) {
             const selection = new Range(targetPosition, targetPosition);
             const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === globalI18nPath);
@@ -504,7 +502,9 @@ console.log("i18n-jump plugin read");
 export function activate(context: ExtensionContext) {
   console.log("i18n-jump plugin activate");
 
-  setListen();
+  if (workspace.workspaceFolders![0].uri.fsPath.includes(oldProjectName)) {
+    setListen();
+  }
 
   // 设置单词分隔
   languages.setLanguageConfiguration("typescript", {
