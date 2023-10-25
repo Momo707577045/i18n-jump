@@ -450,11 +450,19 @@ function setListen() {
   http
     .createServer(function (request, response: any) {
       try {
+        updateLanguage();
         const { query } = url.parse(request.url as string);
         const { action, key } = querystring.parse(query as string);
+        response.setHeader("Access-Control-Max-Age", "18000");
         response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Access-Control-Allow-Methods", "PUT,POST,GET,DELETE,OPTIONS");
-        if (action === "search") {
+        response.setHeader("Access-Control-Allow-headers", "*");
+        response.setHeader("Access-Control-Allow-Methods", "*");
+        console.log("request.method", request.method);
+        if (request.method === "OPTIONS") {
+          response.writeHead(200);
+          response.end();
+          return;
+        } else if (action === "search") {
           commands.executeCommand("workbench.action.findInFiles", {
             query: key,
             filesToInclude: "./src",
@@ -463,19 +471,23 @@ function setListen() {
             isCaseSensitive: true,
           });
           // 直接定位翻译文件
-          const globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/locales/zh-CN/index.i18n.json"); // 文件文本
-          const globalI18nStr = fs.readFileSync(globalI18nPath, "utf-8") as string; // 文件文本
-          const targetPosition = getParamPosition(globalI18nStr, (Array.isArray(key) ? key![0] : key || "")?.split("."));
+          const keyParams = (Array.isArray(key) ? key![0] : key || "")?.split(".");
+          let globalI18nFilePath = path.resolve(globalI18nPath, "zh-CN", "index.i18n.json");
+          if (isNewProject) {
+            globalI18nFilePath = path.resolve(globalI18nPath, "zh-CN", `${keyParams.shift()}.json`);
+          }
+          const globalI18nStr = fs.readFileSync(globalI18nFilePath, "utf-8") as string; // 文件文本
+          const targetPosition = getParamPosition(globalI18nStr, keyParams);
           if (targetPosition) {
             const selection = new Range(targetPosition, targetPosition);
-            const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === globalI18nPath);
+            const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === globalI18nFilePath);
             if (openedEditor) {
               window.showTextDocument(openedEditor.document, {
                 selection,
                 viewColumn: openedEditor.viewColumn,
               });
             } else {
-              workspace.openTextDocument(Uri.file(globalI18nPath)).then((document) => {
+              workspace.openTextDocument(Uri.file(globalI18nFilePath)).then((document) => {
                 window.showTextDocument(document, {
                   selection,
                 });
@@ -489,6 +501,7 @@ function setListen() {
         response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
         response.end("搜索成功，请查看 vscode");
       } catch (error) {
+        console.log(error);
         response.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
         response.end("参数错误，请检查");
       }
