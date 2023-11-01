@@ -61,7 +61,12 @@ function getParamPaths(document: TextDocument, line: TextLine, firstWord: string
     }
     if (currentLine.includes("{") && currentLine.includes(":")) {
       if (stackNum === 0) {
-        namePath.unshift(currentLine.split(":")[0].trim());
+        namePath.unshift(
+          currentLine
+            .split(":")[0]
+            .trim()
+            .replace(/^"(.*)"$/, "$1")
+        );
       } else {
         stackNum--;
       }
@@ -141,6 +146,7 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
   let fileName = document.fileName; // 当前文件完整路径
   const word = document.getText(document.getWordRangeAtPosition(position)); // 当前光标所在单词
   const line = document.lineAt(position); // 当前光标所在行字符串
+  const isLocales = fileName.includes("locales");
 
   // 如果非 .i18n.json 文件，则不做处理
   if (!fileName.includes("i18n.json") && !fileName.includes(globalI18nPath)) {
@@ -151,7 +157,7 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
   let targetFileStr = "";
 
   // 响应翻译文件变化，实现 locales 全局文件夹中的跳转
-  if (fileName.includes("locales")) {
+  if (isLocales) {
     fileName = getNextLanguage(fileName);
     targetFileStr = fs.readFileSync(fileName, "utf-8") as string;
   } else {
@@ -159,13 +165,16 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
     namePath.unshift(getNextLanguage(namePath.shift()!));
   }
 
-  const targetPosition = getParamPosition(targetFileStr, namePath);
+  let targetPosition = getParamPosition(targetFileStr, namePath);
   if (!targetPosition) {
-    window.showInformationMessage("未找到对应翻译");
-    return;
+    if (isLocales) {
+      addNewKey(namePath, [fileName], true);
+    } else {
+      addNewKey(namePath.slice(1), [fileName], false);
+    }
   }
-
-  return new Location(Uri.file(fileName), targetPosition);
+  targetPosition = getParamPosition(targetFileStr, namePath);
+  return new Location(Uri.file(fileName), targetPosition as Position);
 }
 
 // 【】针对跳转至具体的翻译
