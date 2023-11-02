@@ -36,7 +36,7 @@ function getValue2KeyPathMapFromObject(currentObj: Object, originObj?: Object, p
     if (isObject(value)) {
       getValue2KeyPathMapFromObject(value, originObj, path, keyPath2ValueMap);
     } else {
-      keyPath2ValueMap[get(originObj, path)] = path;
+      keyPath2ValueMap[get(originObj, path, "").replace(/[^\u4e00-\u9fa5]/g, "")] = path;
     }
   });
   return keyPath2ValueMap;
@@ -541,48 +541,54 @@ function setListen() {
           });
 
           request.on("end", () => {
-            if (action === "i18n") {
-              const textRows = JSON.parse(body as string).textRows;
-              const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName.includes(".json"));
-              const fileName = openedEditor?.document.fileName || "";
-              console.log("i18n", fileName, textRows);
-              if (!openedEditor) {
-              } else if (fileName.includes(globalI18nPath)) {
-                // 全局配置的多语言
-                const targetObj = JSON.parse(fs.readFileSync(fileName, "utf-8") as string);
-                const baseLangValue2KeyPathMap = getValue2KeyPathMapFromObject(targetObj);
-                const targetLangObjs = targetLanguages
-                  .filter((lang) => lang !== baseLang)
-                  .map((lang) => ({
-                    lang,
-                    fileName: fileName.replace(baseLang, lang),
-                    obj: JSON.parse(fs.readFileSync(fileName.replace(baseLang, lang), "utf-8") as string),
-                  }));
-                textRows.forEach((row: { [langKey: string]: string }) => {
-                  const keyPath = baseLangValue2KeyPathMap[row[baseLang]];
-                  if (keyPath) {
-                    targetLangObjs.forEach((langObj) => {
-                      row[langObj.lang] && set(langObj.obj, keyPath, row[langObj.lang]);
-                    });
-                  }
-                });
-                targetLangObjs.forEach((langObj) => fs.writeFileSync(langObj.fileName, JSON.stringify(langObj.obj, null, isNewProject ? 2 : 4), "utf-8"));
-              } else {
-                // 是否单翻译文件
-                const targetObj = JSON.parse(openedEditor.document.getText());
-                const baseLangValue2KeyPathMap = getValue2KeyPathMapFromObject(targetObj[baseLang]);
-                textRows.forEach((row: { [langKey: string]: string }) => {
-                  const keyPath = baseLangValue2KeyPathMap[row[baseLang]];
-                  if (keyPath) {
-                    targetLanguages.forEach((lang) => {
-                      row[lang] && set(targetObj, `${lang}.${keyPath}`, row[lang]);
-                    });
-                  }
-                });
-                fs.writeFileSync(fileName, JSON.stringify(targetObj, null, isNewProject ? 2 : 4), "utf-8"); // 文件文本
+            try {
+              if (action === "i18n") {
+                const textRows = JSON.parse(body as string).textRows;
+                const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName.includes(".json"));
+                const fileName = openedEditor?.document.fileName || "";
+                console.log("i18n", fileName, textRows);
+                if (!openedEditor) {
+                } else if (fileName.includes(globalI18nPath)) {
+                  console.log("全局配置的多语言");
+                  const targetObj = JSON.parse(fs.readFileSync(fileName, "utf-8") as string);
+                  const baseLangValue2KeyPathMap = getValue2KeyPathMapFromObject(targetObj);
+                  const targetLangObjs = targetLanguages
+                    .filter((lang) => lang !== baseLang)
+                    .map((lang) => ({
+                      lang,
+                      fileName: fileName.replace(baseLang, lang),
+                      obj: JSON.parse(fs.readFileSync(fileName.replace(baseLang, lang), "utf-8") as string),
+                    }));
+                  textRows.forEach((row: { [langKey: string]: string }) => {
+                    const keyPath = baseLangValue2KeyPathMap[(row[baseLang] || "").replace(/[^\u4e00-\u9fa5]/g, "")];
+                    if (keyPath) {
+                      targetLangObjs.forEach((langObj) => {
+                        row[langObj.lang] && set(langObj.obj, keyPath, row[langObj.lang]);
+                      });
+                    }
+                  });
+                  targetLangObjs.forEach((langObj) => fs.writeFileSync(langObj.fileName, JSON.stringify(langObj.obj, null, isNewProject ? 2 : 4), "utf-8"));
+                } else {
+                  console.log("单翻译文件");
+                  const targetObj = JSON.parse(fs.readFileSync(fileName, "utf-8") as string);
+                  const baseLangValue2KeyPathMap = getValue2KeyPathMapFromObject(targetObj[baseLang]);
+                  textRows.forEach((row: { [langKey: string]: string }) => {
+                    const keyPath = baseLangValue2KeyPathMap[(row[baseLang] || "").replace(/[^\u4e00-\u9fa5]/g, "")];
+                    if (keyPath) {
+                      targetLanguages.forEach((lang) => {
+                        row[lang] && set(targetObj, `${lang}.${keyPath}`, row[lang]);
+                      });
+                    }
+                  });
+                  fs.writeFileSync(fileName, JSON.stringify(targetObj, null, isNewProject ? 2 : 4), "utf-8"); // 文件文本
+                }
+                response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+                response.end("操作成功，请查看 vscode");
               }
-              response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
-              response.end("操作成功，请查看 vscode");
+            } catch (error) {
+              console.log(error);
+              response.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
+              response.end("参数错误，请检查" + (error || "").toString());
             }
           });
         }
