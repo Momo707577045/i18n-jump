@@ -148,7 +148,7 @@ function addNewKey(paramPaths: string[], targetFilePaths: string[], isGlobalLoca
           set(jsonObj, [language, ...paramPaths].join("."), get(jsonObj, [language, ...paramPaths].join(".")) || "");
         });
       }
-      fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj, null, isNewProject ? 2 : 4), "utf-8"); // 文件文本
+      fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj, null, isNewProject ? 2 : 4) + "\n", "utf-8"); // 文件文本
     } catch (error) {
       console.log("addNewKey", error);
     }
@@ -567,7 +567,9 @@ function setListen() {
                       });
                     }
                   });
-                  targetLangObjs.forEach((langObj) => fs.writeFileSync(langObj.fileName, JSON.stringify(langObj.obj, null, isNewProject ? 2 : 4), "utf-8"));
+                  targetLangObjs.forEach((langObj) =>
+                    fs.writeFileSync(langObj.fileName, JSON.stringify(langObj.obj, null, isNewProject ? 2 : 4) + "\n", "utf-8")
+                  );
                 } else {
                   console.log("单翻译文件");
                   const targetObj = JSON.parse(fs.readFileSync(fileName, "utf-8") as string);
@@ -580,7 +582,7 @@ function setListen() {
                       });
                     }
                   });
-                  fs.writeFileSync(fileName, JSON.stringify(targetObj, null, isNewProject ? 2 : 4), "utf-8"); // 文件文本
+                  fs.writeFileSync(fileName, JSON.stringify(targetObj, null, isNewProject ? 2 : 4) + "\n", "utf-8"); // 文件文本
                 }
                 response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
                 response.end("操作成功，请查看 vscode");
