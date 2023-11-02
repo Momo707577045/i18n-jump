@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as url from "url";
 import * as http from "http";
 import * as querystring from "querystring";
-import { set, get } from "lodash";
+import { set, get, forIn, isObject } from "lodash";
 import {
   TextDocument,
   TextLine,
@@ -23,9 +23,24 @@ import {
 
 const oldProjectName = "xmp_fe";
 const newProjectName = "xmp_fe_kayn";
+const baseLang = "zh-CN";
 let isNewProject = false;
 let globalI18nPath = "";
 let targetLanguages: string[] = [];
+
+// 获取对象的 key path
+function getValue2KeyPathMapFromObject(currentObj: Object, originObj?: Object, prefix = "", keyPath2ValueMap: { [keyPath: string]: string } = {}) {
+  originObj = originObj || currentObj;
+  forIn(currentObj, (value, key) => {
+    const path = prefix ? prefix + "." + key : key;
+    if (isObject(value)) {
+      getValue2KeyPathMapFromObject(value, originObj, path, keyPath2ValueMap);
+    } else {
+      keyPath2ValueMap[get(originObj, path)] = path;
+    }
+  });
+  return keyPath2ValueMap;
+}
 
 // 【】获取系统存在的语言
 function updateLanguage() {
@@ -147,6 +162,9 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
   const word = document.getText(document.getWordRangeAtPosition(position)); // 当前光标所在单词
   const line = document.lineAt(position); // 当前光标所在行字符串
   const isLocales = fileName.includes("locales");
+  if (line.text.indexOf(word) > line.text.indexOf(":")) {
+    return;
+  }
 
   // 如果非 .i18n.json 文件，则不做处理
   if (!fileName.includes("i18n.json") && !fileName.includes(globalI18nPath)) {
@@ -453,6 +471,7 @@ function searchI18n(textEditor: TextEditor, edit: TextEditorEdit): any {
   });
 }
 
+// 端口监听，启动 node 服务，监听请求
 function setListen() {
   const port = 14301;
 
@@ -467,48 +486,106 @@ function setListen() {
         response.setHeader("Access-Control-Allow-headers", "*");
         response.setHeader("Access-Control-Allow-Methods", "*");
         console.log("request.method", request.method);
+
         if (request.method === "OPTIONS") {
           response.writeHead(200);
           response.end();
           return;
-        } else if (action === "search") {
-          commands.executeCommand("workbench.action.findInFiles", {
-            query: key,
-            filesToInclude: "./src",
-            triggerSearch: true,
-            matchWholeWord: true,
-            isCaseSensitive: true,
-          });
-          // 直接定位翻译文件
-          const keyParams = (Array.isArray(key) ? key![0] : key || "")?.split(".");
-          let globalI18nFilePath = path.resolve(globalI18nPath, "zh-CN", "index.i18n.json");
-          if (isNewProject) {
-            globalI18nFilePath = path.resolve(globalI18nPath, "zh-CN", `${keyParams.shift()}.json`);
-          }
-          const globalI18nStr = fs.readFileSync(globalI18nFilePath, "utf-8") as string; // 文件文本
-          const targetPosition = getParamPosition(globalI18nStr, keyParams);
-          if (targetPosition) {
-            const selection = new Range(targetPosition, targetPosition);
-            const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === globalI18nFilePath);
-            if (openedEditor) {
-              window.showTextDocument(openedEditor.document, {
-                selection,
-                viewColumn: openedEditor.viewColumn,
-              });
-            } else {
-              workspace.openTextDocument(Uri.file(globalI18nFilePath)).then((document) => {
-                window.showTextDocument(document, {
-                  selection,
-                });
-              });
-            }
-            return true;
-          }
-        } else {
-          throw new Error("no such action");
         }
-        response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
-        response.end("搜索成功，请查看 vscode");
+
+        if (request.method === "GET") {
+          if (action === "search") {
+            commands.executeCommand("workbench.action.findInFiles", {
+              query: key,
+              filesToInclude: "./src",
+              triggerSearch: true,
+              matchWholeWord: true,
+              isCaseSensitive: true,
+            });
+            // 直接定位翻译文件
+            const keyParams = (Array.isArray(key) ? key![0] : key || "")?.split(".");
+            let globalI18nFilePath = path.resolve(globalI18nPath, "zh-CN", "index.i18n.json");
+            if (isNewProject) {
+              globalI18nFilePath = path.resolve(globalI18nPath, "zh-CN", `${keyParams.shift()}.json`);
+            }
+            const globalI18nStr = fs.readFileSync(globalI18nFilePath, "utf-8") as string; // 文件文本
+            const targetPosition = getParamPosition(globalI18nStr, keyParams);
+            if (targetPosition) {
+              const selection = new Range(targetPosition, targetPosition);
+              const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName === globalI18nFilePath);
+              if (openedEditor) {
+                window.showTextDocument(openedEditor.document, {
+                  selection,
+                  viewColumn: openedEditor.viewColumn,
+                });
+              } else {
+                workspace.openTextDocument(Uri.file(globalI18nFilePath)).then((document) => {
+                  window.showTextDocument(document, {
+                    selection,
+                  });
+                });
+              }
+              return true;
+            }
+          }
+          response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+          response.end("操作成功，请查看 vscode");
+          return;
+        }
+
+        if (request.method === "POST") {
+          let body = "";
+
+          request.on("data", (chunk) => {
+            body += chunk;
+          });
+
+          request.on("end", () => {
+            if (action === "i18n") {
+              const textRows = JSON.parse(body as string).textRows;
+              const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName.includes(".json"));
+              const fileName = openedEditor?.document.fileName || "";
+              console.log("i18n", fileName, textRows);
+              if (!openedEditor) {
+              } else if (fileName.includes(globalI18nPath)) {
+                // 全局配置的多语言
+                const targetObj = JSON.parse(fs.readFileSync(fileName, "utf-8") as string);
+                const baseLangValue2KeyPathMap = getValue2KeyPathMapFromObject(targetObj);
+                const targetLangObjs = targetLanguages
+                  .filter((lang) => lang !== baseLang)
+                  .map((lang) => ({
+                    lang,
+                    fileName: fileName.replace(baseLang, lang),
+                    obj: JSON.parse(fs.readFileSync(fileName.replace(baseLang, lang), "utf-8") as string),
+                  }));
+                textRows.forEach((row: { [langKey: string]: string }) => {
+                  const keyPath = baseLangValue2KeyPathMap[row[baseLang]];
+                  if (keyPath) {
+                    targetLangObjs.forEach((langObj) => {
+                      row[langObj.lang] && set(langObj.obj, keyPath, row[langObj.lang]);
+                    });
+                  }
+                });
+                targetLangObjs.forEach((langObj) => fs.writeFileSync(langObj.fileName, JSON.stringify(langObj.obj, null, isNewProject ? 2 : 4), "utf-8"));
+              } else {
+                // 是否单翻译文件
+                const targetObj = JSON.parse(openedEditor.document.getText());
+                const baseLangValue2KeyPathMap = getValue2KeyPathMapFromObject(targetObj[baseLang]);
+                textRows.forEach((row: { [langKey: string]: string }) => {
+                  const keyPath = baseLangValue2KeyPathMap[row[baseLang]];
+                  if (keyPath) {
+                    targetLanguages.forEach((lang) => {
+                      row[lang] && set(targetObj, `${lang}.${keyPath}`, row[lang]);
+                    });
+                  }
+                });
+                fs.writeFileSync(fileName, JSON.stringify(targetObj, null, isNewProject ? 2 : 4), "utf-8"); // 文件文本
+              }
+              response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+              response.end("操作成功，请查看 vscode");
+            }
+          });
+        }
       } catch (error) {
         console.log(error);
         response.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
