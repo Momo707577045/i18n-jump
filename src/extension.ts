@@ -67,7 +67,7 @@ function updateLanguage() {
   globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/locales/");
   if (projectPath.includes(newProjectName)) {
     isNewProject = true;
-    globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split(newProjectName)[0], `${newProjectName}/locales-json`);
+    globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split(newProjectName)[0], `${newProjectName}/locales`);
   }
 
   targetLanguages = fs
@@ -506,7 +506,7 @@ function i18nTranslate(uri: Uri) {
   updateLanguage();
   let projectPath = globalI18nPath.split("src")[0];
   if (isNewProject) {
-    projectPath = globalI18nPath.split("locales-json")[0];
+    projectPath = globalI18nPath.split("locales")[0];
   }
   console.log("targetFilePaths ", targetFilePaths);
   const childProcess = spawn("node", [`${projectPath}scripts/I18nCreator.js`, ...targetFilePaths], { cwd: projectPath });
