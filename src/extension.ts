@@ -4,6 +4,7 @@ import * as url from "url";
 import * as http from "http";
 import * as querystring from "querystring";
 import { set, get, forIn, isObject } from "lodash";
+import { spawn } from "child_process";
 import {
   TextDocument,
   TextLine,
@@ -40,6 +41,24 @@ function getValue2KeyPathMapFromObject(currentObj: Object, originObj?: Object, p
     }
   });
   return keyPath2ValueMap;
+}
+
+// 深度遍历，获取所有符合规则的文件
+function findTargetFiles(dir: string, prefix: string) {
+  const files = fs.readdirSync(dir);
+  const targetFiles: string[] = [];
+
+  files.forEach((file) => {
+    const pathname = `${dir}/${file}`;
+    const stat = fs.statSync(pathname);
+    if (stat && stat.isDirectory()) {
+      targetFiles.push(...findTargetFiles(pathname, prefix));
+    } else if (pathname.endsWith(prefix)) {
+      targetFiles.push(pathname);
+    }
+  });
+
+  return targetFiles;
 }
 
 // 【】获取系统存在的语言
@@ -471,6 +490,40 @@ function searchI18n(textEditor: TextEditor, edit: TextEditorEdit): any {
   });
 }
 
+// i18n 翻译，利用项目中的 I18nCreator.js 脚本
+function i18nTranslate(uri: Uri) {
+  const stat = fs.statSync(uri.path);
+  const targetFilePaths = [];
+  if (stat && stat.isDirectory()) {
+    targetFilePaths.push(...findTargetFiles(uri.path, ".json"));
+  } else if (uri.path.includes(".json")) {
+    targetFilePaths.push(uri.path);
+  }
+  if (!targetFilePaths.length) {
+    window.showInformationMessage("未找到翻译文件，请重新选择文件");
+    return;
+  }
+  updateLanguage();
+  let projectPath = globalI18nPath.split("src")[0];
+  if (isNewProject) {
+    projectPath = globalI18nPath.split("locales-json")[0];
+  }
+  console.log("targetFilePaths ", targetFilePaths);
+  const childProcess = spawn("node", [`${projectPath}scripts/I18nCreator.js`, ...targetFilePaths], { cwd: projectPath });
+  childProcess.stdout.on("data", (data) => {
+    console.log(`Child process stdout: ${data}`);
+  });
+  childProcess.stderr.on("data", (data) => {
+    window.showInformationMessage("翻译异常，请联系静文", data.toString());
+    console.error(`Child process stderr: ${data}`);
+  });
+  childProcess.on("close", (code) => {
+    if (code === 0) {
+      window.showInformationMessage("翻译成功，请查看 git 对比");
+    }
+  });
+}
+
 // 端口监听，启动 node 服务，监听请求
 function setListen() {
   const port = 14301;
@@ -638,6 +691,7 @@ export function activate(context: ExtensionContext) {
   context.subscriptions.push(commands.registerTextEditorCommand("i18n-jump.jump-store", jumpStore));
   context.subscriptions.push(commands.registerTextEditorCommand("i18n-jump.search-i18n", searchI18n));
   context.subscriptions.push(commands.registerCommand("i18n-jump.jump-git", jumpGit));
+  context.subscriptions.push(commands.registerCommand("i18n-jump.i18n-translate", i18nTranslate));
 }
 
 export function deactivate() {}
