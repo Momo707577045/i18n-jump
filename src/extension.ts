@@ -214,6 +214,44 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
   return new Location(Uri.file(fileName), targetPosition as Position);
 }
 
+// 配置化项目，跳转到组件
+function jumpComponent(document: TextDocument, position: Position): any {
+  updateLanguage();
+  if (!isNewProject) {
+    return;
+  }
+  let componentName = document
+    .getText(document.getWordRangeAtPosition(position))
+    .replace(/([A-Z])/g, "-$1")
+    .toLowerCase(); // 当前光标所在单词
+  componentName = componentName.startsWith("-") ? componentName.substring(1) : componentName;
+
+  // 遍历  文件夹中的文件，获取文件相对路径
+  function traverseFile(dirPath: string) {
+    let urls: string[] = [];
+    let files = fs.readdirSync(dirPath);
+    for (let i = 0, length = files.length; i < length; i++) {
+      let fileName = files[i];
+      let fileAbsolutePath = `${dirPath}/${fileName}`; // 文件绝对路径
+      let stats = fs.statSync(fileAbsolutePath);
+      if (stats.isDirectory()) {
+        urls = [...traverseFile(fileAbsolutePath), ...urls];
+      } else {
+        urls.push(fileAbsolutePath.substring(1)); // 去除首字母 '/'，避免 '//' 路径
+      }
+    }
+    return urls;
+  }
+  const componentDirPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/components");
+  const componentPaths = traverseFile(componentDirPath).filter((item) => item.includes(`/${componentName}/`));
+  if (!componentPaths.length) {
+    return;
+  }
+  let targetFilePath = componentPaths.find((item) => item.includes("index.vue")) || componentPaths[0];
+  const definitionUri = Uri.file(targetFilePath);
+  return new Location(definitionUri, new Position(0, 0));
+}
+
 // 【】针对跳转至具体的翻译
 function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdit): any {
   updateLanguage();
@@ -676,9 +714,16 @@ export function activate(context: ExtensionContext) {
     wordPattern: /([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
   });
 
+  // 设置 JSON 定义跳转
   context.subscriptions.push(
     languages.registerDefinitionProvider(["json"], {
       provideDefinition: switchJsonI18n,
+    })
+  );
+  // 设置配置化项目，跳转至组件功能
+  context.subscriptions.push(
+    languages.registerDefinitionProvider(["typescript"], {
+      provideDefinition: jumpComponent,
     })
   );
 
