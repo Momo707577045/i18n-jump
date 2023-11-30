@@ -252,6 +252,52 @@ function jumpComponent(document: TextDocument, position: Position): any {
   return new Location(definitionUri, new Position(0, 0));
 }
 
+// 从 Business 与 C 组件之间快速相互跳转
+function jumpBusiness2C(document: TextDocument, position: Position): any {
+  updateLanguage();
+  if (!isNewProject) {
+    return;
+  }
+  let fileName = document.fileName; // 当前文件完整路径
+  let componentName = document
+    .getText(document.getWordRangeAtPosition(position))
+    .replace(/([A-Z])/g, "-$1")
+    .toLowerCase(); // 当前光标所在单词
+  componentName = componentName.startsWith("-") ? componentName.substring(1) : componentName;
+  if (!fileName.includes(`/${componentName}/`)) {
+    return;
+  }
+  const componentNameParams = componentName.split("-");
+  const targetComponentNameParams = [...componentNameParams];
+  targetComponentNameParams[0] = componentNameParams[0] === "c" ? "business" : "c";
+  const targetComponentName = targetComponentNameParams.join("-");
+
+  // 遍历  文件夹中的文件，获取文件相对路径
+  function traverseFile(dirPath: string) {
+    let urls: string[] = [];
+    let files = fs.readdirSync(dirPath);
+    for (let i = 0, length = files.length; i < length; i++) {
+      let fileName = files[i];
+      let fileAbsolutePath = `${dirPath}/${fileName}`; // 文件绝对路径
+      let stats = fs.statSync(fileAbsolutePath);
+      if (stats.isDirectory()) {
+        urls = [...traverseFile(fileAbsolutePath), ...urls];
+      } else {
+        urls.push(fileAbsolutePath.substring(1)); // 去除首字母 '/'，避免 '//' 路径
+      }
+    }
+    return urls;
+  }
+  const componentDirPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/components");
+  const componentPaths = traverseFile(componentDirPath).filter((item) => item.includes(`/${targetComponentName}/`));
+  if (!componentPaths.length) {
+    return;
+  }
+  let targetFilePath = componentPaths.find((item) => item.includes("index.vue")) || componentPaths[0];
+  const definitionUri = Uri.file(targetFilePath);
+  return new Location(definitionUri, new Position(0, 0));
+}
+
 // 【】针对跳转至具体的翻译
 function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdit): any {
   updateLanguage();
@@ -724,6 +770,12 @@ export function activate(context: ExtensionContext) {
   context.subscriptions.push(
     languages.registerDefinitionProvider(["typescript"], {
       provideDefinition: jumpComponent,
+    })
+  );
+  // 设置配置化项目，从 Business 与 C 组件之间快速相互跳转
+  context.subscriptions.push(
+    languages.registerDefinitionProvider(["vue"], {
+      provideDefinition: jumpBusiness2C,
     })
   );
 
