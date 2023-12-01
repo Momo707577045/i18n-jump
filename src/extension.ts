@@ -26,8 +26,10 @@ const oldProjectName = "xmp_fe";
 const newProjectName = "xmp_fe_kayn";
 const baseLang = "zh-CN";
 let isNewProject = false;
+let projectPath = "";
 let globalI18nPath = "";
 let targetLanguages: string[] = [];
+let channels: string[] = [];
 
 // 获取对象的 key path
 function getValue2KeyPathMapFromObject(currentObj: Object, originObj?: Object, prefix = "", keyPath2ValueMap: { [keyPath: string]: string } = {}) {
@@ -41,6 +43,21 @@ function getValue2KeyPathMapFromObject(currentObj: Object, originObj?: Object, p
     }
   });
   return keyPath2ValueMap;
+}
+
+// 搜索特定文件是否存在某字符串，如果存在，则返回所在行，所在列
+function findFileStr(filePath: string, searchStr: string) {
+  let fileStr = fs.readFileSync(filePath, "utf8");
+
+  let searchStrIndex = fileStr.indexOf(searchStr);
+  if (searchStrIndex === -1) {
+    return null;
+  }
+
+  return {
+    row: (fileStr.substring(0, searchStrIndex).match(/\n/g) || []).length,
+    column: searchStrIndex - fileStr.lastIndexOf("\n", searchStrIndex) - 1,
+  };
 }
 
 // 深度遍历，获取所有符合规则的文件
@@ -63,18 +80,28 @@ function findTargetFiles(dir: string, prefix: string) {
 
 // 【】获取系统存在的语言
 function updateLanguage() {
-  const projectPath = workspace.workspaceFolders![0].uri.fsPath;
-  globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/locales/");
+  projectPath = workspace.workspaceFolders![0].uri.fsPath.split("src")[0];
+  globalI18nPath = path.resolve(projectPath, "src/locales/");
   if (projectPath.includes(newProjectName)) {
     isNewProject = true;
-    globalI18nPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split(newProjectName)[0], `${newProjectName}/locales`);
+    globalI18nPath = `${projectPath}/locales`;
+    channels = findTargetFiles(path.resolve(projectPath, `src/views/ads-manager/create/rules/modules`), "ts").map(
+      (path) => path.split("/").pop()!.split(".")[0]
+    );
   }
 
   targetLanguages = fs
     .readdirSync(globalI18nPath, { withFileTypes: true })
     .filter((item) => item.isDirectory())
     .map((item) => item.name);
-  console.log(targetLanguages);
+  // console.log("projectPath", projectPath);
+  // console.log("channels", channels);
+  // console.log("targetLanguages", targetLanguages);
+}
+
+// 获取当前渠道
+function getChannel(filePath: string) {
+  return channels.find((channel) => filePath.includes(channel));
 }
 
 // 【】获取轮询的下一个语义
@@ -214,6 +241,17 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
   return new Location(Uri.file(fileName), targetPosition as Position);
 }
 
+// ts 文件定义跳转
+function typescriptDefinition(document: TextDocument, position: Position): any {
+  const locations: Location[] = [];
+  const componentLocation = jumpComponent(document, position);
+  if (componentLocation) {
+    locations.push(componentLocation);
+  }
+  locations.push(...jumpConfig(document, position));
+  return locations;
+}
+
 // 配置化项目，跳转到组件
 function jumpComponent(document: TextDocument, position: Position): any {
   updateLanguage();
@@ -250,6 +288,18 @@ function jumpComponent(document: TextDocument, position: Position): any {
   let targetFilePath = componentPaths.find((item) => item.includes("index.vue")) || componentPaths[0];
   const definitionUri = Uri.file(targetFilePath);
   return new Location(definitionUri, new Position(0, 0));
+}
+
+// vue 文件定义跳转
+function vueDefinition(document: TextDocument, position: Position): any {
+  const locations: Location[] = [];
+  updateLanguage();
+  const business2CLocation = jumpBusiness2C(document, position);
+  if (business2CLocation) {
+    locations.push(business2CLocation);
+  }
+  locations.push(...jumpConfig(document, position));
+  return locations;
 }
 
 // 从 Business 与 C 组件之间快速相互跳转
@@ -296,6 +346,65 @@ function jumpBusiness2C(document: TextDocument, position: Position): any {
   let targetFilePath = componentPaths.find((item) => item.includes("index.vue")) || componentPaths[0];
   const definitionUri = Uri.file(targetFilePath);
   return new Location(definitionUri, new Position(0, 0));
+}
+
+// 根据草稿字段，跳转到相关配置，如「校验」「草稿定义」「被动联动」
+function jumpConfig(document: TextDocument, position: Position) {
+  updateLanguage();
+  if (!isNewProject) {
+    return [];
+  }
+
+  let currentFilePath = document.fileName; // 当前文件完整路径
+  const word = document.getText(document.getWordRangeAtPosition(position)); // 当前光标所在单词
+  const channel = getChannel(currentFilePath);
+  console.log("word", word);
+
+  const checkConfigs: {
+    filePath: string;
+    searchStr: string;
+  }[] = [];
+
+  // 搜索校验
+  checkConfigs.push({
+    filePath: path.resolve(projectPath, `src/views/ads-manager/create/rules/modules/${channel}.ts`),
+    searchStr: `${word}(`,
+  });
+  checkConfigs.push({
+    filePath: path.resolve(projectPath, `src/views/ads-manager/create/rules/modules/${channel}.ts`),
+    searchStr: `${word.toUpperCase()}]`,
+  });
+
+  // 搜索草稿定义
+  checkConfigs.push({
+    filePath: path.resolve(projectPath, `src/types/${channel}.ts`),
+    searchStr: `${word}: `,
+  });
+
+  // 搜索被动联动
+  findTargetFiles(path.resolve(projectPath, `src/views/ads-manager/create/fields-trigger/modules/${channel}`), ".ts").forEach((filePath) => {
+    checkConfigs.push({
+      filePath: filePath,
+      searchStr: word,
+    });
+  });
+
+  // 搜索配置项
+  findTargetFiles(path.resolve(projectPath, `src/views/ads-manager/create/media-platform-config/modules/${channel}`), ".ts").forEach((filePath) => {
+    checkConfigs.push({
+      filePath: filePath,
+      searchStr: `${word}: {`,
+    });
+  });
+
+  return checkConfigs
+    .filter((conf) => conf.filePath !== currentFilePath)
+    .map((conf) => ({
+      conf,
+      position: findFileStr(conf.filePath, conf.searchStr),
+    }))
+    .filter((result) => result.position)
+    .map((result) => new Location(Uri.file(result.conf.filePath), new Position(result.position!.row, result.position!.column)));
 }
 
 // 【】针对跳转至具体的翻译
@@ -588,10 +697,6 @@ function i18nTranslate(uri: Uri) {
     return;
   }
   updateLanguage();
-  let projectPath = globalI18nPath.split("src")[0];
-  if (isNewProject) {
-    projectPath = globalI18nPath.split("locales")[0];
-  }
   console.log("targetFilePaths ", targetFilePaths);
   const childProcess = spawn("node", [`${projectPath}scripts/I18nCreator.js`, ...targetFilePaths], { cwd: projectPath });
   childProcess.stdout.on("data", (data) => {
@@ -769,13 +874,13 @@ export function activate(context: ExtensionContext) {
   // 设置配置化项目，跳转至组件功能
   context.subscriptions.push(
     languages.registerDefinitionProvider(["typescript"], {
-      provideDefinition: jumpComponent,
+      provideDefinition: typescriptDefinition,
     })
   );
   // 设置配置化项目，从 Business 与 C 组件之间快速相互跳转
   context.subscriptions.push(
     languages.registerDefinitionProvider(["vue"], {
-      provideDefinition: jumpBusiness2C,
+      provideDefinition: vueDefinition,
     })
   );
 
