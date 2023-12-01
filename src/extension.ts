@@ -46,11 +46,10 @@ function getValue2KeyPathMapFromObject(currentObj: Object, originObj?: Object, p
 }
 
 // 搜索特定文件是否存在某字符串，如果存在，则返回所在行，所在列
-function findFileStr(filePath: string, searchStr: string) {
+function findFileStr(filePath: string, regStr: string, flag = "gi") {
   let fileStr = fs.readFileSync(filePath, "utf8");
-
-  let searchStrIndex = fileStr.indexOf(searchStr);
-  if (searchStrIndex === -1) {
+  const [searchStrIndex] = [...fileStr.matchAll(new RegExp(regStr, flag))].map((match) => match.index);
+  if (searchStrIndex === undefined) {
     return null;
   }
 
@@ -368,11 +367,11 @@ function jumpConfig(document: TextDocument, position: Position) {
   // 搜索校验
   checkConfigs.push({
     filePath: path.resolve(projectPath, `src/views/ads-manager/create/rules/modules/${channel}.ts`),
-    searchStr: `${word}(`,
+    searchStr: `${word}\\(`,
   });
   checkConfigs.push({
     filePath: path.resolve(projectPath, `src/views/ads-manager/create/rules/modules/${channel}.ts`),
-    searchStr: `${word.toUpperCase()}]`,
+    searchStr: `${word.toUpperCase()}\]`,
   });
 
   // 搜索草稿定义
@@ -393,7 +392,7 @@ function jumpConfig(document: TextDocument, position: Position) {
   findTargetFiles(path.resolve(projectPath, `src/views/ads-manager/create/media-platform-config/modules/${channel}`), ".ts").forEach((filePath) => {
     checkConfigs.push({
       filePath: filePath,
-      searchStr: `${word}: {`,
+      searchStr: `${word}: \\{`,
     });
   });
 
