@@ -86,9 +86,6 @@ function updateLanguage() {
   if (projectPath.includes(newProjectName)) {
     isNewProject = true;
     globalI18nPath = `${projectPath}/locales`;
-    channels = findTargetFiles(path.resolve(projectPath, `src/views/ads-manager/create/rules/modules`), "ts").map(
-      (path) => path.split("/").pop()!.split(".")[0]
-    );
   }
 
   targetLanguages = fs
@@ -100,8 +97,11 @@ function updateLanguage() {
   // console.log("targetLanguages", targetLanguages);
 }
 
-// 获取当前渠道
+// 获取当前渠道，路径已发生变化，路径不可用
 function getChannel(filePath: string) {
+  channels = findTargetFiles(path.resolve(projectPath, `src/views/ads-manager/create/rules/modules`), "ts").map(
+    (path) => path.split("/").pop()!.split(".")[0]
+  );
   return channels.find((channel) => filePath.includes(channel));
 }
 
