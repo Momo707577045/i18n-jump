@@ -1,6 +1,6 @@
 {
   "name": "i18n-jump",
-  "version": "1.5.1",
+  "version": "1.5.3",
   "publisher": "maojingwen",
   "displayName": "i18n-jump",
   "description": "i18n-jump-for-xmp",
@@ -112,6 +112,11 @@
           "type": "boolean",
           "default": true,
           "description": "是否显示「一键翻译」功能"
+        },
+        "i18n-jump.showConfigJump": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否启用配置化关联文件跳转"
         }
       }
     }

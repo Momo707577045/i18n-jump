@@ -26,6 +26,7 @@ const oldProjectName = "xmp_fe";
 const newProjectName = "xmp_fe_kayn";
 const baseLang = "zh-CN";
 let isNewProject = false;
+let isEnableConfigJump = false; // 是否启用配置化关联文件跳转
 let projectPath = "";
 let globalI18nPath = "";
 let targetLanguages: string[] = [];
@@ -79,6 +80,7 @@ function findTargetFiles(dir: string, prefix: string) {
 
 // 【】获取系统存在的语言
 function updateLanguage() {
+  isEnableConfigJump = workspace.getConfiguration("i18n-jump").get("showConfigJump") as boolean;
   projectPath = workspace.workspaceFolders![0].uri.fsPath.split("src")[0];
   globalI18nPath = path.resolve(projectPath, "src/locales/");
   if (projectPath.includes(newProjectName)) {
@@ -350,7 +352,7 @@ function jumpBusiness2C(document: TextDocument, position: Position): any {
 // 根据草稿字段，跳转到相关配置，如「校验」「草稿定义」「被动联动」
 function jumpConfig(document: TextDocument, position: Position) {
   updateLanguage();
-  if (!isNewProject) {
+  if (!isEnableConfigJump || !isNewProject) {
     return [];
   }
 
@@ -396,14 +398,16 @@ function jumpConfig(document: TextDocument, position: Position) {
     });
   });
 
-  return checkConfigs
-    .filter((conf) => conf.filePath !== currentFilePath)
-    .map((conf) => ({
-      conf,
-      position: findFileStr(conf.filePath, conf.searchStr),
-    }))
-    .filter((result) => result.position)
-    .map((result) => new Location(Uri.file(result.conf.filePath), new Position(result.position!.row, result.position!.column)));
+  return (
+    checkConfigs
+      // .filter((conf) => conf.filePath !== currentFilePath)
+      .map((conf) => ({
+        conf,
+        position: findFileStr(conf.filePath, conf.searchStr),
+      }))
+      .filter((result) => result.position)
+      .map((result) => new Location(Uri.file(result.conf.filePath), new Position(result.position!.row, result.position!.column)))
+  );
 }
 
 // 【】针对跳转至具体的翻译
@@ -893,6 +897,8 @@ export function activate(context: ExtensionContext) {
   context.subscriptions.push(commands.registerTextEditorCommand("i18n-jump.search-i18n", searchI18n));
   context.subscriptions.push(commands.registerCommand("i18n-jump.jump-git", jumpGit));
   context.subscriptions.push(commands.registerCommand("i18n-jump.i18n-translate", i18nTranslate));
+
+  
 }
 
 export function deactivate() {}
