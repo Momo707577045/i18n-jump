@@ -20,6 +20,8 @@ import {
   TextEditor,
   TextEditorEdit,
   ExtensionContext,
+  CompletionItem,
+  CompletionItemKind,
 } from "vscode";
 
 const oldProjectName = "xmp_fe";
@@ -99,9 +101,7 @@ function updateLanguage() {
 
 // 获取当前渠道，路径已发生变化，路径不可用
 function getChannel(filePath: string) {
-  channels = findTargetFiles(path.resolve(projectPath, `src/views/ads-manager/create/rules/modules`), "ts").map(
-    (path) => path.split("/").pop()!.split(".")[0]
-  );
+  channels = findTargetFiles(path.resolve(projectPath, `src/views/ads-manager/create/rules/modules`), "ts").map((path) => path.split("/").pop()!.split(".")[0]);
   return channels.find((channel) => filePath.includes(channel));
 }
 
@@ -664,6 +664,45 @@ function jumpGit(uri: Uri) {
   });
 }
 
+// i18n 代码补全
+function provideI18n(document: TextDocument, position: Position) {
+  updateLanguage();
+  if (!isNewProject) {
+    return [];
+  }
+
+  let pathStr = document.lineAt(position).text.substring(0, position.character);
+  if (!/\Wt\(['"`]/.test(pathStr)) {
+    return [];
+  }
+  pathStr = pathStr.split("t(")[1].substring(1);
+
+  const fileName = pathStr.split(".")[0].trim();
+  console.log("fileName", fileName);
+
+  // 文件的选择
+  if (!pathStr.includes(".")) {
+    return findTargetFiles(path.resolve(globalI18nPath, "zh-CN"), "json")
+      .map((targetFile) => new CompletionItem(path.basename(targetFile).replace(".json", ""), CompletionItemKind.Field));
+  }
+
+  // 文件内容的字段选择
+  const jsonObj = require(path.resolve(globalI18nPath, "zh-CN", `${fileName}.json`));
+  const levelPath = pathStr
+    .split(".")
+    .slice(1)
+    .filter((param) => param)
+    .join(".");
+  const currentLevelObj = levelPath ? get(jsonObj, levelPath) : jsonObj;
+  if (!isObject(currentLevelObj)) {
+    return [];
+  }
+
+  return Object.keys(currentLevelObj).map((key) => {
+    return new CompletionItem(key, CompletionItemKind.Field);
+  });
+}
+
 // 【】搜索使用该翻译的地方
 function searchI18n(textEditor: TextEditor, edit: TextEditorEdit): any {
   updateLanguage();
@@ -897,8 +936,9 @@ export function activate(context: ExtensionContext) {
   context.subscriptions.push(commands.registerTextEditorCommand("i18n-jump.search-i18n", searchI18n));
   context.subscriptions.push(commands.registerCommand("i18n-jump.jump-git", jumpGit));
   context.subscriptions.push(commands.registerCommand("i18n-jump.i18n-translate", i18nTranslate));
-
   
+  // 添加翻译代码补全
+  context.subscriptions.push(languages.registerCompletionItemProvider(["javascript", "typescript", "vue"], { provideCompletionItems: provideI18n }, "."));
 }
 
 export function deactivate() {}
