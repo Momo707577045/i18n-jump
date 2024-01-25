@@ -1,6 +1,6 @@
 {
   "name": "i18n-jump",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "publisher": "maojingwen",
   "displayName": "i18n-jump",
   "description": "i18n-jump-for-xmp",
@@ -42,6 +42,18 @@
       }
     ],
     "commands": [
+      {
+        "command": "i18n-jump.start-server",
+        "title": "i18n-jump.start-server"
+      },
+      {
+        "command": "i18n-jump.stop-server",
+        "title": "i18n-jump.stop-server"
+      },
+      {
+        "command": "i18n-jump.check-server",
+        "title": "i18n-jump.check-server"
+      },
       {
         "command": "i18n-jump.search-i18n",
         "title": "搜索被引用项"

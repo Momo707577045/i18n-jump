@@ -2,6 +2,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as url from "url";
 import * as http from "http";
+import { Server } from "http";
 import * as querystring from "querystring";
 import { set, get, forIn, isObject } from "lodash";
 import { spawn } from "child_process";
@@ -28,6 +29,7 @@ const oldProjectName = "xmp_fe";
 const newProjectName = "xmp_fe_kayn";
 const baseLang = "zh-CN";
 const vsLog = window.createOutputChannel("i18n-jump");
+let server: null | Server = null;
 let isNewProject = false;
 let isEnableConfigJump = false; // 是否启用配置化关联文件跳转
 let projectPath = "";
@@ -761,7 +763,7 @@ function i18nTranslate(uri: Uri) {
     myLog('log', `I18nCreator: ${data}`);
   });
   childProcess.stderr.on("data", (data) => {
-    window.showInformationMessage("翻译异常，请联系静文",'-日志可查看「输出」「I18nJump」窗口', data.toString());
+    window.showInformationMessage("翻译异常，请联系静文", '-日志可查看「输出」「I18nJump」窗口', data.toString());
     myLog('error', `I18nCreator: ${data}`);
   });
   childProcess.on("close", (code) => {
@@ -775,7 +777,7 @@ function i18nTranslate(uri: Uri) {
 function setListen() {
   const port = 14301;
 
-  http
+  server = http
     .createServer(function (request, response: any) {
       try {
         updateLanguage();
@@ -899,14 +901,37 @@ function setListen() {
         response.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
         response.end("参数错误，请检查");
       }
-    })
-    .listen(port);
-  myLog('log', `Server running at http://127.0.0.1:${port}/`);
+    });
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      myLog('error', `Port ${port} is already in use`);
+      server?.close();
+      server = null;
+    }
+  });
+  server.listen(port, () => {
+    myLog('log', `Server running at http://127.0.0.1:${port}/`);
+  });
+}
+
+// 关闭监听
+function stopListen() {
+  server?.close();
+  server = null;
+  myLog('log', 'Server stop');
+}
+
+// 检查当前项目是否监听成功
+function checkListen() {
+  if (server) {
+    window.showInformationMessage('info', '端口监听中');
+  } else {
+    window.showInformationMessage('info', '端口监听失败');
+  }
 }
 
 // 插件被激活时所调用的函数，仅被激活时调用，仅进入一次
 myLog('log', "i18n-jump plugin read");
-myLog('log', "i18n-jump plugin read", { name: '321' });
 export function activate(context: ExtensionContext) {
   myLog('log', "i18n-jump plugin activate");
 
@@ -953,6 +978,9 @@ export function activate(context: ExtensionContext) {
   context.subscriptions.push(commands.registerTextEditorCommand("i18n-jump.search-i18n", searchI18n));
   context.subscriptions.push(commands.registerCommand("i18n-jump.jump-git", jumpGit));
   context.subscriptions.push(commands.registerCommand("i18n-jump.i18n-translate", i18nTranslate));
+  context.subscriptions.push(commands.registerCommand("i18n-jump.start-server", setListen));
+  context.subscriptions.push(commands.registerCommand("i18n-jump.stop-server", stopListen));
+  context.subscriptions.push(commands.registerCommand("i18n-jump.check-server", checkListen));
   // 添加翻译代码补全
   // context.subscriptions.push(languages.registerCompletionItemProvider(["javascript", "typescript", "vue"], { provideCompletionItems: provideI18n }, "."));
 }
