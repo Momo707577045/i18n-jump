@@ -27,12 +27,18 @@ import {
 const oldProjectName = "xmp_fe";
 const newProjectName = "xmp_fe_kayn";
 const baseLang = "zh-CN";
+const vsLog = window.createOutputChannel("i18n-jump");
 let isNewProject = false;
 let isEnableConfigJump = false; // 是否启用配置化关联文件跳转
 let projectPath = "";
 let globalI18nPath = "";
 let targetLanguages: string[] = [];
 let channels: string[] = [];
+
+function myLog(fun: 'log' | 'warn' | 'error' | 'info', ...text: any[]) {
+  console[fun](...text);
+  vsLog.appendLine(text.join('  '));
+};
 
 // 获取对象的 key path
 function getValue2KeyPathMapFromObject(currentObj: Object, originObj?: Object, prefix = "", keyPath2ValueMap: { [keyPath: string]: string } = {}) {
@@ -94,9 +100,9 @@ function updateLanguage() {
     .readdirSync(globalI18nPath, { withFileTypes: true })
     .filter((item) => item.isDirectory())
     .map((item) => item.name);
-  // console.log("projectPath", projectPath);
-  // console.log("channels", channels);
-  // console.log("targetLanguages", targetLanguages);
+  // myLog('log', "projectPath", projectPath);
+  // myLog('log', "channels", channels);
+  // myLog('log', "targetLanguages", targetLanguages);
 }
 
 // 获取当前渠道，路径已发生变化，路径不可用
@@ -154,7 +160,7 @@ function getParamPosition(fileStr: string, originParamPaths: string[]) {
       if (!preParams) {
         break;
       }
-      // console.log(currentLine, currentLineStr, preParams, JSON.stringify(paramPaths));
+      // myLog('log', currentLine, currentLineStr, preParams, JSON.stringify(paramPaths));
       if (preParams.stackNum === 0 && regexp.test(currentLineStr)) {
         shiftParamPaths.push(paramPaths.shift()!);
         regexp = new RegExp(`["' ]${paramPaths[0]?.path}\\W`);
@@ -171,14 +177,14 @@ function getParamPosition(fileStr: string, originParamPaths: string[]) {
       currentLine++;
     }
     const lastWord = shiftParamPaths.pop()?.path!;
-    console.log("getParamPosition", currentLine, lastWord, paramPaths, originParamPaths, currentLineStr);
+    myLog('log', "getParamPosition", currentLine, lastWord, paramPaths, originParamPaths, currentLineStr);
     // 还有路径没匹配完，证明未命中
     if (paramPaths.length) {
       return false;
     }
     return new Position(currentLine - 1, currentLineStr.indexOf(lastWord));
   } catch (error) {
-    console.log(error);
+    myLog('log', error);
   }
 }
 
@@ -197,7 +203,7 @@ function addNewKey(paramPaths: string[], targetFilePaths: string[], isGlobalLoca
       }
       fs.writeFileSync(targetFilePath, JSON.stringify(jsonObj, null, isNewProject ? 2 : 4) + "\n", "utf-8"); // 文件文本
     } catch (error) {
-      console.log("addNewKey", error);
+      myLog('log', "addNewKey", error);
     }
   });
 }
@@ -359,7 +365,7 @@ function jumpConfig(document: TextDocument, position: Position) {
   let currentFilePath = document.fileName; // 当前文件完整路径
   const word = document.getText(document.getWordRangeAtPosition(position)); // 当前光标所在单词
   const channel = getChannel(currentFilePath);
-  console.log("word", word);
+  myLog('log', "word", word);
 
   const checkConfigs: {
     filePath: string;
@@ -550,7 +556,7 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
     }
   } else {
     const [namespaceStr] = lineStr.split(".");
-    console.log("namespaceStr", namespaceStr, lineStr);
+    myLog('log', "namespaceStr", namespaceStr, lineStr);
     if (lineStr.includes("State(")) {
       isState = true;
     }
@@ -569,9 +575,9 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
   function searchKey(searchStr: string, targetFilePaths: string[]) {
     for (let pathIndex = 0; pathIndex < targetFilePaths.length; pathIndex++) {
       const targetFilePath = targetFilePaths[pathIndex];
-      console.log(searchStr, targetFilePath);
+      myLog('log', searchStr, targetFilePath);
       if (!fs.existsSync(targetFilePath)) {
-        console.log(targetFilePath, "not exist");
+        myLog('log', targetFilePath, "not exist");
         continue;
       }
       const targetFileLines = fs.readFileSync(targetFilePath, "utf-8").split("\n"); // 文件文本
@@ -590,7 +596,7 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
     window.showInformationMessage("未找到对应 store，请选中 mapFields，Getter，mutation 或 action");
     return false;
   }
-  console.log("namespace", namespace);
+  myLog('log', "namespace", namespace);
 
   // 遍历 dist 文件夹中的文件，获取文件相对路径
   function traverseFile(dirPath: string) {
@@ -678,13 +684,22 @@ function provideI18n(document: TextDocument, position: Position) {
   pathStr = pathStr.split("t(")[1].substring(1);
 
   const fileName = pathStr.split(".")[0].trim();
-  console.log("fileName", fileName);
+  myLog('log', "fileName", fileName);
 
   // 文件的选择
   if (!pathStr.includes(".")) {
-    return findTargetFiles(path.resolve(globalI18nPath, "zh-CN"), "json")
-      .map((targetFile) => new CompletionItem(path.basename(targetFile).replace(".json", ""), CompletionItemKind.Field));
+    return findTargetFiles(path.resolve(globalI18nPath, "zh-CN"), "json").map(
+      (targetFile) => new CompletionItem(path.basename(targetFile).replace(".json", ""), CompletionItemKind.Field)
+    );
   }
+
+  // 添加不同颜色
+  window.activeTextEditor!.setDecorations(
+    window.createTextEditorDecorationType({
+      fontWeight: "bold",
+    }),
+    [new Range(position, position)]
+  );
 
   // 文件内容的字段选择
   const jsonObj = require(path.resolve(globalI18nPath, "zh-CN", `${fileName}.json`));
@@ -739,14 +754,14 @@ function i18nTranslate(uri: Uri) {
     return;
   }
   updateLanguage();
-  console.log("targetFilePaths ", targetFilePaths);
+  myLog('log', "targetFilePaths ", targetFilePaths);
   const childProcess = spawn("node", [`${projectPath}/scripts/I18nCreator.js`, ...targetFilePaths], { cwd: projectPath });
   childProcess.stdout.on("data", (data) => {
-    console.log(`Child process stdout: ${data}`);
+    myLog('log', `I18nCreator: ${data}`);
   });
   childProcess.stderr.on("data", (data) => {
-    window.showInformationMessage("翻译异常，请联系静文", data.toString());
-    console.error(`Child process stderr: ${data}`);
+    window.showInformationMessage("翻译异常，请联系静文",'-日志可查看「输出」「I18nJump」窗口', data.toString());
+    myLog('error', `I18nCreator: ${data}`);
   });
   childProcess.on("close", (code) => {
     if (code === 0) {
@@ -769,7 +784,7 @@ function setListen() {
         response.setHeader("Access-Control-Allow-Origin", "*");
         response.setHeader("Access-Control-Allow-headers", "*");
         response.setHeader("Access-Control-Allow-Methods", "*");
-        console.log("request.method", request.method);
+        myLog('log', "request.method", request.method);
 
         if (request.method === "OPTIONS") {
           response.writeHead(200);
@@ -830,10 +845,10 @@ function setListen() {
                 const textRows = JSON.parse(body as string).textRows;
                 const openedEditor = window.visibleTextEditors.find((e) => e.document.fileName.includes(".json"));
                 const fileName = openedEditor?.document.fileName || "";
-                console.log("i18n", fileName, textRows);
+                myLog('log', "i18n", fileName, textRows);
                 if (!openedEditor) {
                 } else if (fileName.includes(globalI18nPath)) {
-                  console.log("全局配置的多语言");
+                  myLog('log', "全局配置的多语言");
                   const targetObj = JSON.parse(fs.readFileSync(fileName, "utf-8") as string);
                   const baseLangValue2KeyPathMap = getValue2KeyPathMapFromObject(targetObj);
                   const targetLangObjs = targetLanguages
@@ -855,7 +870,7 @@ function setListen() {
                     fs.writeFileSync(langObj.fileName, JSON.stringify(langObj.obj, null, isNewProject ? 2 : 4) + "\n", "utf-8")
                   );
                 } else {
-                  console.log("单翻译文件");
+                  myLog('log', "单翻译文件");
                   const targetObj = JSON.parse(fs.readFileSync(fileName, "utf-8") as string);
                   const baseLangValue2KeyPathMap = getValue2KeyPathMapFromObject(targetObj[baseLang]);
                   textRows.forEach((row: { [langKey: string]: string }) => {
@@ -872,26 +887,27 @@ function setListen() {
                 response.end("操作成功，请查看 vscode");
               }
             } catch (error) {
-              console.log(error);
+              myLog('log', error);
               response.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
               response.end("参数错误，请检查" + (error || "").toString());
             }
           });
         }
       } catch (error) {
-        console.log(error);
+        myLog('log', error);
         response.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
         response.end("参数错误，请检查");
       }
     })
     .listen(port);
-  console.log(`Server running at http://127.0.0.1:${port}/`);
+  myLog('log', `Server running at http://127.0.0.1:${port}/`);
 }
 
 // 插件被激活时所调用的函数，仅被激活时调用，仅进入一次
-console.log("i18n-jump plugin read");
+myLog('log', "i18n-jump plugin read");
+myLog('log', "i18n-jump plugin read", { name: '321' });
 export function activate(context: ExtensionContext) {
-  console.log("i18n-jump plugin activate");
+  myLog('log', "i18n-jump plugin activate");
 
   if (workspace.workspaceFolders![0].uri.fsPath.includes(oldProjectName)) {
     setListen();
@@ -936,9 +952,8 @@ export function activate(context: ExtensionContext) {
   context.subscriptions.push(commands.registerTextEditorCommand("i18n-jump.search-i18n", searchI18n));
   context.subscriptions.push(commands.registerCommand("i18n-jump.jump-git", jumpGit));
   context.subscriptions.push(commands.registerCommand("i18n-jump.i18n-translate", i18nTranslate));
-  
   // 添加翻译代码补全
-  context.subscriptions.push(languages.registerCompletionItemProvider(["javascript", "typescript", "vue"], { provideCompletionItems: provideI18n }, "."));
+  // context.subscriptions.push(languages.registerCompletionItemProvider(["javascript", "typescript", "vue"], { provideCompletionItems: provideI18n }, "."));
 }
 
-export function deactivate() {}
+export function deactivate() { }
