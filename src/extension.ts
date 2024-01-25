@@ -755,6 +755,7 @@ function i18nTranslate(uri: Uri) {
   }
   updateLanguage();
   myLog('log', "targetFilePaths ", targetFilePaths);
+  myLog('log', "node", `${projectPath}/scripts/I18nCreator.js`, ...targetFilePaths);
   const childProcess = spawn("node", [`${projectPath}/scripts/I18nCreator.js`, ...targetFilePaths], { cwd: projectPath });
   childProcess.stdout.on("data", (data) => {
     myLog('log', `I18nCreator: ${data}`);
