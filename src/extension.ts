@@ -501,7 +501,7 @@ function jumpI18n(lang: "en" | "cn", textEditor: TextEditor, edit: TextEditorEdi
     );
     findPosition();
   } else {
-    window.showInformationMessage("未找到对应翻译，选区是否正确");
+    window.showErrorMessage("未找到对应翻译，选区是否正确");
   }
 }
 
@@ -553,7 +553,7 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
       currentLineNum--;
     }
     if (currentLineNum < 0) {
-      window.showInformationMessage("未找到对应 store，请选中 mapFields，Getter，mutation 或 action");
+      window.showErrorMessage("未找到对应 store，请选中 mapFields，Getter，mutation 或 action");
       return;
     }
   } else {
@@ -595,7 +595,7 @@ function jumpStore(textEditor: TextEditor, edit: TextEditorEdit): any {
         currentLine++;
       }
     }
-    window.showInformationMessage("未找到对应 store，请选中 mapFields，Getter，mutation 或 action");
+    window.showErrorMessage("未找到对应 store，请选中 mapFields，Getter，mutation 或 action");
     return false;
   }
   myLog('log', "namespace", namespace);
@@ -752,18 +752,22 @@ function i18nTranslate(uri: Uri) {
     targetFilePaths.push(uri.path);
   }
   if (!targetFilePaths.length) {
-    window.showInformationMessage("未找到翻译文件，请重新选择文件");
+    window.showErrorMessage("未找到翻译文件，请重新选择文件");
     return;
   }
   updateLanguage();
   myLog('log', "targetFilePaths ", targetFilePaths);
   myLog('log', "node", `${projectPath}/scripts/I18nCreator.js`, ...targetFilePaths);
-  const childProcess = spawn("node", [`${projectPath}/scripts/I18nCreator.js`, ...targetFilePaths], { cwd: projectPath });
+  const childProcess = spawn("node", [`${projectPath}/scripts/I18nCreator.cjs`, ...targetFilePaths], { cwd: projectPath });
   childProcess.stdout.on("data", (data) => {
     myLog('log', `I18nCreator: ${data}`);
   });
   childProcess.stderr.on("data", (data) => {
-    window.showInformationMessage("翻译异常，请联系静文", '-日志可查看「输出」「I18nJump」窗口', data.toString());
+    window.showErrorMessage("翻译异常，请联系静文", '查看运行日志').then(selection => {
+      if (selection === '查看运行日志') {
+        vsLog.show();
+      }
+    });
     myLog('error', `I18nCreator: ${data}`);
   });
   childProcess.on("close", (code) => {
@@ -924,9 +928,9 @@ function stopListen() {
 // 检查当前项目是否监听成功
 function checkListen() {
   if (server) {
-    window.showInformationMessage('info', '端口监听中');
+    window.showInformationMessage('端口监听中');
   } else {
-    window.showInformationMessage('info', '端口监听失败');
+    window.showInformationMessage('端口未监听');
   }
 }
 
