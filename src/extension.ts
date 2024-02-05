@@ -989,9 +989,10 @@ function initButton() {
   closeBtn.command = BTN_CLOSE;
   closeBtn.show();
   commands.registerCommand(BTN_CLOSE, () => {
-    const activeTerminal = window.activeTerminal || window.createTerminal()
-    activeTerminal!.sendText('\u0003')
-    activeTerminal?.hide();
+    window.terminals.forEach((terminal) => {
+      terminal.sendText('\u0003')
+    })
+    window.showInformationMessage('进程关闭成功');
   });
 
   const hostOptions: string[] = [];
