@@ -1002,7 +1002,11 @@ function initButton() {
   hostSelectBtn.command = BTN_HOST;
   hostSelectBtn.show();
   commands.registerCommand(BTN_HOST, async () => {
-    hostSelectBtn.text = (await window.showQuickPick(hostOptions))!;
+    const result = (await window.showQuickPick(hostOptions))
+    if (!result) {
+      return
+    }
+    hostSelectBtn.text = result;
     fileStorage.setItem('host', hostSelectBtn.text);
     window.showInformationMessage(`编译环境设置成功，${hostSelectBtn.text}`);
   });
