@@ -22,6 +22,7 @@ import {
   TextEditorEdit,
   ExtensionContext,
   CompletionItem,
+  StatusBarAlignment,
   CompletionItemKind,
 } from "vscode";
 
@@ -36,6 +37,31 @@ let projectPath = "";
 let globalI18nPath = "";
 let targetLanguages: string[] = [];
 let channels: string[] = [];
+
+// 文件存储，实现 localStorage 效果
+const fileStorage = {
+  config: <any>null,
+  initConfig() {
+    if (!this.config) {
+      try {
+        updateLanguage();
+        this.config = JSON.parse(fs.readFileSync(`${projectPath}/node_modules/i18n-jump.json`).toString())
+      } catch (error) {
+        myLog('error', 'fileStorage getItem ', error)
+        this.config = {}
+      }
+    }
+  },
+  setItem(key: string, value: any) {
+    this.initConfig();
+    set(this.config, key, value)
+    fs.writeFileSync(`${projectPath}/node_modules/i18n-jump.json`, JSON.stringify(this.config, null, 2), { flag: 'w+' });
+  },
+  getItem(key: string) {
+    this.initConfig();
+    return get(this.config, key);
+  },
+};
 
 function myLog(fun: 'log' | 'warn' | 'error' | 'info', ...text: any[]) {
   console[fun](...text);
@@ -934,10 +960,85 @@ function checkListen() {
   }
 }
 
+// 添加左下角快捷按钮
+function initButton() {
+  const isShow = workspace.getConfiguration('i18n-jump').get('showBtn');
+  if (!isShow) {
+    return
+  }
+  const BTN_RUN = 'I18N-JUMP-COMMAND-RUN'
+  const BTN_CLOSE = 'I18N-JUMP-COMMAND-CLOSE'
+  const BTN_BUILD = 'I18N-JUMP-COMMAND-BUILD'
+  const BTN_HOST = 'I18N-JUMP-COMMAND-HOST'
+
+  const runBtn = window.createStatusBarItem(StatusBarAlignment.Left, 9999999999999999999999999999);
+  runBtn.text = '启动';
+  runBtn.tooltip = '运行项目 npm run serve';
+  runBtn.command = BTN_RUN;
+  runBtn.show();
+  commands.registerCommand(BTN_RUN, () => {
+    const activeTerminal = window.activeTerminal || window.createTerminal()
+    activeTerminal!.sendText('npm run serve')
+    activeTerminal?.show();
+  });
+
+
+  const closeBtn = window.createStatusBarItem(StatusBarAlignment.Left, 9999999999999999999999999999);
+  closeBtn.text = '关闭';
+  closeBtn.tooltip = '关闭项目运行';
+  closeBtn.command = BTN_CLOSE;
+  closeBtn.show();
+  commands.registerCommand(BTN_CLOSE, () => {
+    const activeTerminal = window.activeTerminal || window.createTerminal()
+    activeTerminal!.sendText('\u0003')
+    activeTerminal?.hide();
+  });
+
+  const hostOptions: string[] = [];
+  const hostSelectBtn = window.createStatusBarItem(StatusBarAlignment.Left, 9999999999999999999999999999);
+  hostSelectBtn.text = fileStorage.getItem('host') || '编译环境';
+  hostSelectBtn.tooltip = '选择需要编译的环境';
+  hostSelectBtn.command = BTN_HOST;
+  hostSelectBtn.show();
+  commands.registerCommand(BTN_HOST, async () => {
+    hostSelectBtn.text = (await window.showQuickPick(hostOptions))!;
+    fileStorage.setItem('host', hostSelectBtn.text);
+    window.showInformationMessage(`编译环境设置成功，${hostSelectBtn.text}`);
+  });
+  http.get('http://upyun.luckly-mjw.cn/Assets/host.txt?v=' + new Date().getTime(), (response) => {
+    let data = '';
+    response.on('data', (chunk) => data += chunk);
+    response.on('end', () => {
+      data.split('\n').forEach(line => {
+        line.split(' ').forEach(sentence => {
+          if (sentence.includes('-api.xmp.ai')) {
+            hostOptions.push(sentence.trim().replace('-xmp-api.xmp.ai', ''))
+          }
+        })
+      });
+    });
+  })
+
+  const buildBtn = window.createStatusBarItem(StatusBarAlignment.Left, 9999999999999999999999999999);
+  buildBtn.text = '编译';
+  buildBtn.tooltip = '使用 xmp-cli 命令编译打包项目';
+  buildBtn.command = BTN_BUILD;
+  buildBtn.show();
+  commands.registerCommand(BTN_BUILD, () => {
+    if (!hostOptions.includes(hostSelectBtn.text)) {
+      return window.showErrorMessage('请先选择编译环境')
+    }
+    const activeTerminal = window.activeTerminal || window.createTerminal()
+    activeTerminal!.sendText(`xmp ci -d ${hostSelectBtn.text}`);
+    activeTerminal?.show();
+  });
+}
+
 // 插件被激活时所调用的函数，仅被激活时调用，仅进入一次
 myLog('log', "i18n-jump plugin read");
 export function activate(context: ExtensionContext) {
   myLog('log', "i18n-jump plugin activate");
+  initButton();
 
   if (workspace.workspaceFolders![0].uri.fsPath.includes(oldProjectName)) {
     setListen();

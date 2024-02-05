@@ -1,6 +1,6 @@
 {
   "name": "i18n-jump",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "publisher": "maojingwen",
   "displayName": "i18n-jump",
   "description": "i18n-jump-for-xmp",
@@ -129,6 +129,11 @@
           "type": "boolean",
           "default": false,
           "description": "是否启用配置化关联文件跳转"
+        },
+        "i18n-jump.showBtn": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否启用左下角快捷按钮"
         }
       }
     }
