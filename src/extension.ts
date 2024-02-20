@@ -895,7 +895,8 @@ function setListen() {
                     const keyPath = baseLangValue2KeyPathMap[(row[baseLang] || "").replace(/[^\u4e00-\u9fa5]/g, "")];
                     if (keyPath) {
                       targetLangObjs.forEach((langObj) => {
-                        row[langObj.lang] && set(langObj.obj, keyPath, row[langObj.lang]);
+                        const targetText = row[langObj.lang] || row['en-US'];
+                        targetText && set(langObj.obj, keyPath, targetText);
                       });
                     }
                   });
@@ -910,7 +911,8 @@ function setListen() {
                     const keyPath = baseLangValue2KeyPathMap[(row[baseLang] || "").replace(/[^\u4e00-\u9fa5]/g, "")];
                     if (keyPath) {
                       targetLanguages.forEach((lang) => {
-                        row[lang] && set(targetObj, `${lang}.${keyPath}`, row[lang]);
+                        const targetText = row[lang] || row['en-US'];
+                        targetText && set(targetObj, `${lang}.${keyPath}`, targetText);
                       });
                     }
                   });
@@ -1008,7 +1010,6 @@ function initButton() {
     }
     hostSelectBtn.text = result;
     fileStorage.setItem('host', hostSelectBtn.text);
-    window.showInformationMessage(`编译环境设置成功，${hostSelectBtn.text}`);
   });
   http.get('http://upyun.luckly-mjw.cn/Assets/host.txt?v=' + new Date().getTime(), (response) => {
     let data = '';
@@ -1033,7 +1034,7 @@ function initButton() {
     if (!hostOptions.includes(hostSelectBtn.text)) {
       return window.showErrorMessage('请先选择编译环境')
     }
-    const activeTerminal = window.activeTerminal || window.createTerminal()
+    const activeTerminal = window.createTerminal()
     activeTerminal!.sendText(`xmp ci -d ${hostSelectBtn.text}`);
     activeTerminal?.show();
   });
