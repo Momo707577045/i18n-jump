@@ -27,7 +27,7 @@ import {
 } from "vscode";
 
 const oldProjectName = "xmp_fe";
-const newProjectName = "xmp_fe_kayn";
+const newProjectName = "summoner";
 const baseLang = "zh-CN";
 const vsLog = window.createOutputChannel("i18n-jump");
 let server: null | Server = null;
@@ -37,6 +37,8 @@ let projectPath = "";
 let globalI18nPath = "";
 let targetLanguages: string[] = [];
 let channels: string[] = [];
+let vueFilePaths: string[] = [];
+
 
 // 文件存储，实现 localStorage 效果
 const fileStorage = {
@@ -116,18 +118,22 @@ function findTargetFiles(dir: string, prefix: string) {
 
 // 【】获取系统存在的语言
 function updateLanguage() {
-  isEnableConfigJump = workspace.getConfiguration("i18n-jump").get("showConfigJump") as boolean;
-  projectPath = workspace.workspaceFolders![0].uri.fsPath.split("src")[0];
-  globalI18nPath = path.resolve(projectPath, "src/locales/");
-  if (projectPath.includes(newProjectName)) {
-    isNewProject = true;
-    globalI18nPath = `${projectPath}/locales`;
-  }
+  try {
+    isEnableConfigJump = workspace.getConfiguration("i18n-jump").get("showConfigJump") as boolean;
+    projectPath = workspace.workspaceFolders![0].uri.fsPath.split("src")[0];
+    globalI18nPath = path.resolve(projectPath, "src/locales/");
+    if (projectPath.includes(newProjectName)) {
+      isNewProject = true;
+      globalI18nPath = `${projectPath}/apps/rift/locales`;
+    }
 
-  targetLanguages = fs
-    .readdirSync(globalI18nPath, { withFileTypes: true })
-    .filter((item) => item.isDirectory())
-    .map((item) => item.name);
+    targetLanguages = fs
+      .readdirSync(globalI18nPath, { withFileTypes: true })
+      .filter((item) => item.isDirectory())
+      .map((item) => item.name);
+  } catch (error) {
+
+  }
   // myLog('log', "projectPath", projectPath);
   // myLog('log', "channels", channels);
   // myLog('log', "targetLanguages", targetLanguages);
@@ -287,18 +293,8 @@ function typescriptDefinition(document: TextDocument, position: Position): any {
   return locations;
 }
 
-// 配置化项目，跳转到组件
-function jumpComponent(document: TextDocument, position: Position): any {
-  updateLanguage();
-  if (!isNewProject) {
-    return;
-  }
-  let componentName = document
-    .getText(document.getWordRangeAtPosition(position))
-    .replace(/([A-Z])/g, "-$1")
-    .toLowerCase(); // 当前光标所在单词
-  componentName = componentName.startsWith("-") ? componentName.substring(1) : componentName;
-
+// 收集配置化组件映射
+function collectComponentMap() {
   // 遍历  文件夹中的文件，获取文件相对路径
   function traverseFile(dirPath: string) {
     let urls: string[] = [];
@@ -307,7 +303,8 @@ function jumpComponent(document: TextDocument, position: Position): any {
       let fileName = files[i];
       let fileAbsolutePath = `${dirPath}/${fileName}`; // 文件绝对路径
       let stats = fs.statSync(fileAbsolutePath);
-      if (stats.isDirectory()) {
+      if (fileName.includes('node_modules')) {
+      } else if (stats.isDirectory()) {
         urls = [...traverseFile(fileAbsolutePath), ...urls];
       } else {
         urls.push(fileAbsolutePath.substring(1)); // 去除首字母 '/'，避免 '//' 路径
@@ -315,8 +312,18 @@ function jumpComponent(document: TextDocument, position: Position): any {
     }
     return urls;
   }
-  const componentDirPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/components");
-  const componentPaths = traverseFile(componentDirPath).filter((item) => item.includes(`/${componentName}/`));
+  vueFilePaths = traverseFile(workspace.workspaceFolders![0].uri.fsPath).filter((item) => item.includes('.vue'));
+}
+
+// 配置化项目，跳转到组件
+function jumpComponent(document: TextDocument, position: Position): any {
+  updateLanguage();
+  let componentName = document
+    .getText(document.getWordRangeAtPosition(position))
+    .replace(/([A-Z])/g, "-$1")
+    .toLowerCase(); // 当前光标所在单词
+  componentName = componentName.startsWith("-") ? componentName.substring(1) : componentName;
+  const componentPaths = vueFilePaths.filter((item) => item.includes(`/${componentName}/`) || item.includes(`/${componentName}.vue`));
   if (!componentPaths.length) {
     return;
   }
@@ -340,16 +347,13 @@ function vueDefinition(document: TextDocument, position: Position): any {
 // 从 Business 与 C 组件之间快速相互跳转
 function jumpBusiness2C(document: TextDocument, position: Position): any {
   updateLanguage();
-  if (!isNewProject) {
-    return;
-  }
   let fileName = document.fileName; // 当前文件完整路径
   let componentName = document
     .getText(document.getWordRangeAtPosition(position))
     .replace(/([A-Z])/g, "-$1")
     .toLowerCase(); // 当前光标所在单词
   componentName = componentName.startsWith("-") ? componentName.substring(1) : componentName;
-  if (!fileName.includes(`/${componentName}/`)) {
+  if (!fileName.includes(`/${componentName}/`) && !fileName.includes(`/${componentName}.vue`)) {
     return;
   }
   const componentNameParams = componentName.split("-");
@@ -357,24 +361,7 @@ function jumpBusiness2C(document: TextDocument, position: Position): any {
   targetComponentNameParams[0] = componentNameParams[0] === "c" ? "business" : "c";
   const targetComponentName = targetComponentNameParams.join("-");
 
-  // 遍历  文件夹中的文件，获取文件相对路径
-  function traverseFile(dirPath: string) {
-    let urls: string[] = [];
-    let files = fs.readdirSync(dirPath);
-    for (let i = 0, length = files.length; i < length; i++) {
-      let fileName = files[i];
-      let fileAbsolutePath = `${dirPath}/${fileName}`; // 文件绝对路径
-      let stats = fs.statSync(fileAbsolutePath);
-      if (stats.isDirectory()) {
-        urls = [...traverseFile(fileAbsolutePath), ...urls];
-      } else {
-        urls.push(fileAbsolutePath.substring(1)); // 去除首字母 '/'，避免 '//' 路径
-      }
-    }
-    return urls;
-  }
-  const componentDirPath = path.resolve(workspace.workspaceFolders![0].uri.fsPath.split("src")[0], "src/components");
-  const componentPaths = traverseFile(componentDirPath).filter((item) => item.includes(`/${targetComponentName}/`));
+  const componentPaths = vueFilePaths.filter((item) => item.includes(`/${targetComponentName}/`));
   if (!componentPaths.length) {
     return;
   }
@@ -1045,6 +1032,7 @@ myLog('log', "i18n-jump plugin read");
 export function activate(context: ExtensionContext) {
   myLog('log', "i18n-jump plugin activate");
   initButton();
+  collectComponentMap();
 
   if (workspace.workspaceFolders![0].uri.fsPath.includes(oldProjectName)) {
     setListen();
@@ -1058,6 +1046,11 @@ export function activate(context: ExtensionContext) {
   // 设置单词分隔
   languages.setLanguageConfiguration("json", {
     wordPattern: /([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
+  });
+
+  workspace.onDidCreateFiles(uri => {
+    console.log('File created:', uri);
+    collectComponentMap();
   });
 
   // 设置 JSON 定义跳转
