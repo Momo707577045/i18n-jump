@@ -47,16 +47,16 @@ const fileStorage = {
     if (!this.config) {
       try {
         updateLanguage();
-        this.config = JSON.parse(fs.readFileSync(`${projectPath}/node_modules/i18n-jump.json`).toString())
+        this.config = JSON.parse(fs.readFileSync(`${projectPath}/node_modules/i18n-jump.json`).toString());
       } catch (error) {
-        myLog('error', 'fileStorage getItem ', error)
-        this.config = {}
+        myLog('error', 'fileStorage getItem ', error);
+        this.config = {};
       }
     }
   },
   setItem(key: string, value: any) {
     this.initConfig();
-    set(this.config, key, value)
+    set(this.config, key, value);
     fs.writeFileSync(`${projectPath}/node_modules/i18n-jump.json`, JSON.stringify(this.config, null, 2), { flag: 'w+' });
   },
   getItem(key: string) {
@@ -327,7 +327,7 @@ function jumpComponent(document: TextDocument, position: Position): any {
   if (!componentPaths.length) {
     return;
   }
-  let targetFilePath = componentPaths.find((item) => item.includes("index.vue")) || componentPaths[0];
+  let targetFilePath = componentPaths.sort().reverse().find((item) => item.includes(`/${componentName}/index.vue`)) || componentPaths[0];
   const definitionUri = Uri.file(targetFilePath);
   return new Location(definitionUri, new Position(0, 0));
 }
@@ -953,12 +953,12 @@ function checkListen() {
 function initButton() {
   const isShow = workspace.getConfiguration('i18n-jump').get('showBtn');
   if (!isShow) {
-    return
+    return;
   }
-  const BTN_RUN = 'I18N-JUMP-COMMAND-RUN'
-  const BTN_CLOSE = 'I18N-JUMP-COMMAND-CLOSE'
-  const BTN_BUILD = 'I18N-JUMP-COMMAND-BUILD'
-  const BTN_HOST = 'I18N-JUMP-COMMAND-HOST'
+  const BTN_RUN = 'I18N-JUMP-COMMAND-RUN';
+  const BTN_CLOSE = 'I18N-JUMP-COMMAND-CLOSE';
+  const BTN_BUILD = 'I18N-JUMP-COMMAND-BUILD';
+  const BTN_HOST = 'I18N-JUMP-COMMAND-HOST';
 
   const runBtn = window.createStatusBarItem(StatusBarAlignment.Left, 9999999999999999999999999999);
   runBtn.text = '启动';
@@ -966,8 +966,8 @@ function initButton() {
   runBtn.command = BTN_RUN;
   runBtn.show();
   commands.registerCommand(BTN_RUN, () => {
-    const activeTerminal = window.activeTerminal || window.createTerminal()
-    activeTerminal!.sendText('npm run serve')
+    const activeTerminal = window.activeTerminal || window.createTerminal();
+    activeTerminal!.sendText('npm run serve');
     activeTerminal?.show();
   });
 
@@ -979,8 +979,8 @@ function initButton() {
   closeBtn.show();
   commands.registerCommand(BTN_CLOSE, () => {
     window.terminals.forEach((terminal) => {
-      terminal.sendText('\u0003')
-    })
+      terminal.sendText('\u0003');
+    });
     window.showInformationMessage('进程关闭成功');
   });
 
@@ -991,9 +991,9 @@ function initButton() {
   hostSelectBtn.command = BTN_HOST;
   hostSelectBtn.show();
   commands.registerCommand(BTN_HOST, async () => {
-    const result = (await window.showQuickPick(hostOptions))
+    const result = (await window.showQuickPick(hostOptions));
     if (!result) {
-      return
+      return;
     }
     hostSelectBtn.text = result;
     fileStorage.setItem('host', hostSelectBtn.text);
@@ -1005,12 +1005,12 @@ function initButton() {
       data.split('\n').forEach(line => {
         line.split(' ').forEach(sentence => {
           if (sentence.includes('-api.xmp.ai')) {
-            hostOptions.push(sentence.trim().replace('-xmp-api.xmp.ai', ''))
+            hostOptions.push(sentence.trim().replace('-xmp-api.xmp.ai', ''));
           }
-        })
+        });
       });
     });
-  })
+  });
 
   const buildBtn = window.createStatusBarItem(StatusBarAlignment.Left, 9999999999999999999999999999);
   buildBtn.text = '编译';
@@ -1019,9 +1019,9 @@ function initButton() {
   buildBtn.show();
   commands.registerCommand(BTN_BUILD, () => {
     if (!hostOptions.includes(hostSelectBtn.text)) {
-      return window.showErrorMessage('请先选择编译环境')
+      return window.showErrorMessage('请先选择编译环境');
     }
-    const activeTerminal = window.createTerminal()
+    const activeTerminal = window.createTerminal();
     activeTerminal!.sendText(`xmp ci -d ${hostSelectBtn.text}`);
     activeTerminal?.show();
   });
