@@ -37,6 +37,7 @@ let projectPath = "";
 let globalI18nPath = "";
 let targetLanguages: string[] = [];
 let channels: string[] = [];
+let tsFilePaths: string[] = [];
 let vueFilePaths: string[] = [];
 
 
@@ -285,16 +286,18 @@ function switchJsonI18n(document: TextDocument, position: Position): any {
 // ts 文件定义跳转
 function typescriptDefinition(document: TextDocument, position: Position): any {
   const locations: Location[] = [];
+  const confLocation = jumpConf(document, position);
   const componentLocation = jumpComponent(document, position);
   if (componentLocation) {
     locations.push(componentLocation);
   }
   locations.push(...jumpConfig(document, position));
+  locations.push(...confLocation);
   return locations;
 }
 
 // 收集配置化组件映射
-function collectComponentMap() {
+function collectFileMap() {
   // 遍历  文件夹中的文件，获取文件相对路径
   function traverseFile(dirPath: string) {
     let urls: string[] = [];
@@ -312,6 +315,7 @@ function collectComponentMap() {
     }
     return urls;
   }
+  tsFilePaths = traverseFile(workspace.workspaceFolders![0].uri.fsPath).filter((item) => item.includes('.ts'));
   vueFilePaths = traverseFile(workspace.workspaceFolders![0].uri.fsPath).filter((item) => item.includes('.vue'));
 }
 
@@ -330,6 +334,35 @@ function jumpComponent(document: TextDocument, position: Position): any {
   let targetFilePath = componentPaths.sort().reverse().find((item) => item.includes(`/${componentName}/index.vue`)) || componentPaths[0];
   const definitionUri = Uri.file(targetFilePath);
   return new Location(definitionUri, new Position(0, 0));
+}
+
+// 配置化项目，配置文件跳转，从 normal，auto，fields-trigger
+function jumpConf(document: TextDocument, position: Position): any {
+  updateLanguage();
+  let targetDirs = ['normal', 'auto', 'fields-trigger'];
+  targetDirs = [...targetDirs, ...targetDirs];
+  let currentDirIndex = targetDirs.findIndex(dir => document.fileName.includes(dir));
+  let currentFileName = document.fileName.split('/').pop() || ''; // 当前文件完整路径
+
+  // 不在目标文件夹，跳过
+  if (currentDirIndex === -1) {
+    return [];
+  }
+  const targetLine = document.lineAt(position).text;
+  let targetWord = document.getText(document.getWordRangeAtPosition(position));
+  if(!targetLine.includes(':') || !targetLine.split(':')[0].includes(targetWord)){
+    return [];
+  }
+
+  const targetPosition = [];
+  for (let index = 0; index < 2; index++) {
+    let targetDir = targetDirs[currentDirIndex + 1 + index];
+    let targetFilePath = tsFilePaths.filter(filePath => filePath.includes(targetDir) && filePath.includes(currentFileName))[0];
+    const definitionUri = Uri.file(targetFilePath);
+    let point = findFileStr(targetFilePath, `${targetWord}: {`, 'g') || findFileStr(targetFilePath, targetWord, 'g');
+    targetPosition.push(new Location(definitionUri, new Position(point?.row || 0, point?.column || 0)));
+  }
+  return targetPosition;
 }
 
 // vue 文件定义跳转
@@ -1032,7 +1065,7 @@ myLog('log', "i18n-jump plugin read");
 export function activate(context: ExtensionContext) {
   myLog('log', "i18n-jump plugin activate");
   initButton();
-  collectComponentMap();
+  collectFileMap();
 
   if (workspace.workspaceFolders![0].uri.fsPath.includes(oldProjectName)) {
     setListen();
@@ -1050,7 +1083,7 @@ export function activate(context: ExtensionContext) {
 
   workspace.onDidCreateFiles(uri => {
     console.log('File created:', uri);
-    collectComponentMap();
+    collectFileMap();
   });
 
   // 设置 JSON 定义跳转
